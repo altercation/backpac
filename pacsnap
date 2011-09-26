@@ -75,12 +75,15 @@ INSTALL_BACKUP_MODE=simple # cf man install
 # I_AM_AN_ASSOCIATIVE_ARRAY_[INDEED]
 # Note: evaluated variable names ( eval I_MAY_${BE_AN_ASSOC}_[ARRAY] ) will not 
 # be detected by this unless referenced somewhere else in its full form.
-# TODO: only the first associative arary on a line will be detected; improve.
+# TODO: only the first assoc array on a line will be declared. Currently the 
+# variable name can only be prefixed by non-word characters
 
 for filename in $0 $LIBS_DIRPATH/*; do
-for assoc_array in $(egrep '^[^#]*_(\[.*\])?[+=]' $filename | sed \
-    's/\(^\|^.*\W\)\(\w*_\)[\[\=\].*/\2/' | sort | uniq)
-    do eval "declare -A $assoc_array"; done; done; unset filename
+for assoc_array in $(egrep '^[^#]*_(\[.*\])?[+=]' $filename | sed 's/\W*\(\w\+_\)[\[\=\].*/\1/' | sort | uniq)
+    do
+        eval "declare -A $assoc_array";
+    done;
+done; unset filename
 
 # ----------------------------------------------------------------------
 # SNAPSHOT FILENAMES
@@ -116,6 +119,14 @@ OPT_FORCE_=(
 [ALERT]='Force mode OFF; Prompt before file write operations.'
 [ALERT_SET]='Force mode ON; No prompts presented (CAUTION).'
 [USAGE]='Force all write operations; no prompts will be given.'
+)
+OPT_GROUP_CURRENCY_CHECK_=(
+[FLAG]='G'
+[STATE]='true'
+[STATE_SET]='false'
+[ALERT]='Suppress group check OFF; Groups will be checked for currency.'
+[ALERT_SET]='Suppress group check ON; Groups will not be checked for currency.'
+[USAGE]='Suppress group currency check; Skip checking current group packages.'
 )
 OPT_GIT_UPDATE_=(
 [FLAG]='g'
@@ -328,26 +339,53 @@ else
     done
     UI_Incremental_Alert # finishes the incremental alert line
 fi
-Unit_Report "FULLY INSTALLED GROUPS (DETECTED):\n${GROUPS_[DETECTED]}"
+Unit_Report "INSTALLED GROUPS (DETECTED>80% MEMBER PACKAGE 
+INSTALL):\n${GROUPS_[DETECTED]}"
 
 # CHECK GROUP FOR NEW/REMOVED PACKAGES
 # ----------------------------------------------------------------------
+
+if Is_True ${GROUP_CURRENCY_CHECK}; then
+
 local _group
 for _group in ${GROUPS_[DETECTED]}
 do
-    GROUP_PACKAGES_MISSING_IN_GROUP_[$_group]=$(Set_Op_Difference \
+
+    GROUP_PACKAGES_MISSING_IN_GROUP_[${_group}]="$(\
+        Set_Op_Difference \
+        "${GROUP_PACKAGES_REPO_[$_group]}" \
+        "${GROUP_PACKAGES_LOCAL_[$_group]}")"
+
+    GROUP_PACKAGES_REMOVED_FROM_GROUP_[${_group}]="$(\
+        Set_Op_Difference \
         "${GROUP_PACKAGES_LOCAL_[${_group}]}" \
-        "${GROUP_PACKAGES_REPO_[${_group}]}")
-    exit
-    GROUP_PACKAGES_REMOVED_FROM_GROUP_[$_group]=$(Set_Op_Difference \
-        "${GROUP_PACKAGES_REPO_[${_group}]}" \
-        "${GROUP_PACKAGES_LOCAL_[${_group}]}")
-    echo ">>>>> ${_group} >>> ${GROUP_PACKAGES_MISSING_IN_GROUP_[$_group]}"
+        "${GROUP_PACKAGES_REPO_[${_group}]}")"
+
     [[ -z ${GROUP_PACKAGES_MISSING_IN_GROUP_[$_group]:-} ]] \
-    || Unit_Report "\nPACKAGES ADDED TO GROUP "${_group}" BUT NOT INSTALLED ON LIVE SYSTEM:\n$(echo ${GROUP_PACKAGES_MISSING_IN_GROUP_[$_group]})"
+    || local _report_missing+="MISSING (from group \"${_group}\"):
+    ${GROUP_PACKAGES_MISSING_IN_GROUP_[$_group]}\n"
+
     [[ -z ${GROUP_PACKAGES_REMOVED_FROM_GROUP_[$_group]:-} ]] \
-    || Unit_Report "\nPACKAGES CURRENTLY INSTALLED AS PART OF GROUP "${_group}" HAVE SINCE BEEN REMOVED FROM GROUP:\n$(echo ${GROUP_PACKAGES_REMOVED_FROM_GROUP_[$_group]})"
+    || local _report_removed+="MISSING (from group \"${_group}\"):
+    ${GROUP_PACKAGES_REMOVED_FROM_GROUP_[$_group]}\n"
+
 done
+
+[[ -z ${_report_missing:-} ]] \
+|| Unit_Report "\nMISSING GROUP PACKAGES
+\nPackages currently included in group lists in repository but which are 
+missing from locally installed groups (for groups that have been fully 
+installed). Possibly indicates that groups have been updated in the official 
+repositories. \n${_report_missing%\n}"
+
+[[ -z ${_report_removed:-} ]] \
+|| Unit_Report "\nREMOVED GROUP PACKAGES
+\nPackages that are currently installed via group package installation but 
+which have since been removed from group list in repository (for groups that 
+have been fully installed). Possibly indicates that groups have been updated in 
+the official repositories. \n${_report_removed%\n}"
+
+fi
 
 # PACKAGE STATE
 # ----------------------------------------------------------------------
@@ -408,35 +446,35 @@ $(echo ${AUR_MISSING_IN_[FILE]})"
 # - record the names and report the diff value of any files that differ from
 #   the live system
 
-UI_Passive_Alert "Checking overlay files"
-DEFAULT_ATTRIBS="644 root root"
-
-_IFS=$IFS; IFS=$'\n'
-for line in ${OVERLAY_[FILE]}
-do
-    _path=$(echo -n $line | awk '{print $1}')
-    _attribs=$(echo -n $line | awk '{print $2,$3,$4}')
-    [[ -e $_path ]] && _live_attribs=$(stat -c '%a %U %G' $_path)
-    [[ -z $_attribs && -e $_path ]] && _attribs=$_live_attribs
-    #TODO: may be better to not set default values in case of no current live file
-    #[[ -z $_attribs ]] && _attribs=$DEFAULT_ATTRIBS
-    overlay_files[reviewed]+="$_path $_attribs\n"
-    [[ -e $_path ]] && overlay_files[live]+="$_path $_live_attribs\n" || overlay_files[live]+="$_path $_attribs\n"
-    overlay_files[paths]+="$_path\n"
-done
-IFS=$_IFS
-overlay_files[file]="$(echo -e "${overlay_files[reviewed]}" | sed '/^$/d')"
-overlay_files[live]="$(echo -e "${overlay_files[live]}" | sed '/^$/d')"
-overlay_files[paths]="$(echo -e "${overlay_files[paths]}" | sed '/^$/d')"
-overlay_files[diff]="$(compare "${overlay_files[live]}" "${overlay_files[file]}")"
-report overlay "Overlay file list:"
-report overlay "${overlay_files[file]}"
-if [[ -n ${overlay_files[diff]} ]]
-then
-    report overlay "\nOverlay file items that differ from the live system"
-    report overlay "${overlay_files[diff]}"
-fi
-
+#UI_Passive_Alert "Checking overlay files"
+#DEFAULT_ATTRIBS="644 root root"
+#
+#_IFS=$IFS; IFS=$'\n'
+#for line in ${OVERLAY_[FILE]}
+#do
+#    _path=$(echo -n $line | awk '{print $1}')
+#    _attribs=$(echo -n $line | awk '{print $2,$3,$4}')
+#    [[ -e $_path ]] && _live_attribs=$(stat -c '%a %U %G' $_path)
+#    [[ -z $_attribs && -e $_path ]] && _attribs=$_live_attribs
+#    #TODO: may be better to not set default values in case of no current live file
+#    #[[ -z $_attribs ]] && _attribs=$DEFAULT_ATTRIBS
+#    overlay_files[reviewed]+="$_path $_attribs\n"
+#    [[ -e $_path ]] && overlay_files[live]+="$_path $_live_attribs\n" || overlay_files[live]+="$_path $_attribs\n"
+#    overlay_files[paths]+="$_path\n"
+#done
+#IFS=$_IFS
+#overlay_files[file]="$(echo -e "${overlay_files[reviewed]}" | sed '/^$/d')"
+#overlay_files[live]="$(echo -e "${overlay_files[live]}" | sed '/^$/d')"
+#overlay_files[paths]="$(echo -e "${overlay_files[paths]}" | sed '/^$/d')"
+#overlay_files[diff]="$(compare "${overlay_files[live]}" "${overlay_files[file]}")"
+#report overlay "Overlay file list:"
+#report overlay "${overlay_files[file]}"
+#if [[ -n ${overlay_files[diff]} ]]
+#then
+#    report overlay "\nOverlay file items that differ from the live system"
+#    report overlay "${overlay_files[diff]}"
+#fi
+#
 }
 
 UNIT_UpdateSnapshot ()

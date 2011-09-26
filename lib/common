@@ -107,6 +107,7 @@ Read_File_Drop_Comments ()
 Unit_Report ()
 {
     # find parent UNIT_ function
+    _message="$(echo $*)"
     local _category
     for _category in "${FUNCNAME[@]}"
     do
@@ -120,7 +121,7 @@ Unit_Report ()
     fi
 
     # add report string to report category string
-    REPORT_[${_category#UNIT_}]+="$*\n";
+    REPORT_[${_category#UNIT_}]+="${_message}\n";
 }
 
 UI_Passive_Alert ()
@@ -288,16 +289,11 @@ Set_Op_Intersection ()
 }
 Set_Op_Difference ()
 {
-    echo ">>>>>>>>>>>>> HERE"
     local _set_a="${1}"
     local _set_b="${2}"
     # should be using clean data, but we shouldn't trust in that
     _set_a="$(echo ${_set_a} | Normalize_To_List)"
     _set_b="$(echo ${_set_b} | Normalize_To_List)"
-    echo ">>>>>>>>>>>>> 2"
-    Debug "----------------------------------"
-    Debug "_set_a"
-    Debug "$(echo $_set_a)"
     echo "$(comm -23 <(echo "${_set_a}") <(echo "${_set_b}"))"
 }
 
@@ -348,31 +344,11 @@ Normalize_To_Array ()
     fi
 }
 
-# Data_To_Sorted_List input_var_name output_var_name
-# Can take either: two input values (both variable *names*), input/ouput
-# or piped input and single output variable name
-# --
-# If input data is given as variable name, variable can be array or list
-# and list can be newline or space separated items
 Normalize_To_List ()
 {
-    if [[ -n ${2:-} ]]
-    then
-        local _list_name=${2:-}
-        Is_Array ${1:-} && eval _data_content+="\${$1[*]}" || _data_content="${!1}"
-        _IFS="$IFS"; IFS="\n"
-        local _item
-        for _item in $(echo ${_data_content} | tr -s " " "\n" | sort -u)
-        do eval ${_list_name}+=\"\${_item} \"; done
-        IFS="$_IFS"
-    else
-        while read _line
-        do _data_content+="${_line} "; done
-        [[ -z ${_data_content} ]] && Fail_Critically "No input received."
-        _IFS="$IFS"; IFS="\n"
-        local _item
-        echo ${_data_content} | tr -s " " "\n" | sort -u
-        IFS="$_IFS"
-    fi
+    # normalize input (command line or piped) to single line space delimited 
+    [[ -n ${1:-} ]] && _data_content="$(echo ${1})" \
+        || while read _line; do _data_content+="${_line} "; done
+    echo ${_data_content} | tr -s " " "\n" | sort -u
 }
 
