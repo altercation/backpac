@@ -148,16 +148,14 @@ UI_Active_Warning ()
 
 Options_Initialize ()
 {
-local _summary_var=${1:-}
-local _warning_var=${2:-}
+# use original command line options from main
+set -- $CMDLINE_OPTIONS
+
 # used throughout this funcion; make sure it's local
 local _option_array
 
-# set minimum required option flags (h=help)
-local _option_flags="h"
-
 # read flags into a new array for reverse option lookup using getopts
-local _option_array
+local _option_flags="h" # we always want 'h' for 'help'
 for _option_array in ${!OPT_*}
 do
     eval local _flag=\${${_option_array}[FLAG]}
@@ -165,50 +163,39 @@ do
     FLAG_[${_flag%:}]="$_option_array"  # strip colon if present
 done
 
-# reset command line options here since we're inside a function
-set -- $CMDLINE_OPTIONS
-
 # use getopts to process command line options and set values here
-local _options_active=""
 local _option_flag
 while getopts "${_option_flags}" _option_flag
-do
-    case ${_option_flag} in
-        \?) exit 1 ;; # getopts has detected an incorrectly formatted option
-        h)  echo "HELP!!!!!" ;;
-        *)  local _option=${FLAG_[${_option_flag}]}
-            local _item;
-            eval ${_option}[ALERT]=\"\${${_option}[ALERT_SET]}\"
-            eval ${_option}[SET]="true"
-            if [[ -n ${OPTARG:-} ]]
-            then
-                eval ${_option}[STATE]=\"\${OPTARG}\"
-            else
-                eval ${_option}[STATE]=\"\${${_option}[STATE_SET]}\"
-            fi
-            _options_active+="${_option} "
-            ;;
-    esac
-done
+do case ${_option_flag} in
+    \?) exit 1 ;; # getopts has detected an incorrectly formatted option
+    h)  echo "HELP!!!!!" ;;
+    *)  local _option=${FLAG_[${_option_flag}]}
+        local _item;
+        eval ${_option}[ALERT]=\"\${${_option}[ALERT_SET]}\"
+        eval ${_option}[SET]="true"
+        [[ -n ${OPTARG:-} ]] \
+        && eval ${_option}[STATE]=\"\${OPTARG}\" \
+        || eval ${_option}[STATE]=\"\${${_option}[STATE_SET]}\"
+    ;;
+esac done
 
 # set GLOBAL_OPTION from equivalent OPT_GLOBAL_OPTION_
 for _option_array in ${!OPT_*}
 do
     local _global_option=${_option_array#OPT_}
-    _global_option=${_global_option%_}
-    eval ${_global_option}=\"\${$_option_array[STATE]}\"
+    eval ${_global_option%_}=\"\${$_option_array[STATE]}\"
 done
 
 # check for any conflicts
 for _option_array in ${!OPT_*}
 do
-    eval local _test_set=\"\${$_option_array[SET]:-}\"
-    if [[ -n ${_test_set} ]]
+    eval local _test_option_is_set=\"\${$_option_array[SET]:-}\"
+    if [[ -n ${_test_option_is_set} ]]
     then
         eval local _conflict_name=\"\${$_option_array[CONFLICTS]:-}\"
         [[ -z ${_conflict_name} ]] && _conflict_value=false \
         || eval local _conflict_value=\"\${$_conflict_name}\"
-        if Is_True $_conflict_value
+        if Is_True ${_conflict_value}
         then
             eval local _warning=\"Cannot use -\${OPT_${_conflict_name}_[FLAG]} \
             and -\${$_option_array[FLAG]} command line options simultaneously.\"

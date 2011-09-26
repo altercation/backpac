@@ -3,27 +3,29 @@
 TestFunc ()
 {
     return
-    _testval="a b c d 3 e e ff a g h"
-    _testval1="1 2 7 d 3 3 77  4     5 7 77 i 7 6"
-    #echo $(echo $_testval | Data_To_Sorted_List)
-    Set_Op_Difference "$_testval" "$_testval1"
     exit
 }
 
 # ----------------------------------------------------------------------
+# REQUIRES
+# ----------------------------------------------------------------------
+# requires:
+# wget
+# packer (can install automatically)
+
+# ----------------------------------------------------------------------
 # STYLE GUIDE
 # ----------------------------------------------------------------------
-#each function can make no assumptions about state
-#calling a function should not change state (unless it is false state)
-#Global_Functions_Camel_Case_No_Leading_Underscore
-#_Local_Functions_Camel_Case_o_Leading_Underscore
-#GLOBALS
-#globals to be used as function locals or loop temp vars (should be unset)
-#_locals
-#ASSOCIATIVE_ARRAYS_[NOTE_FINAL_UNDERSCORE]
+# avoid changing global state inside functions; prefer to return echo'd
+#        values or set indirect variable names (not always possible)
+# Global_Functions_Camel_Case_No_Leading_Underscore
+# _Local_Functions_Camel_Case_o_Leading_Underscore
+# GLOBALS in all caps
+# globals that used to retrieve results from functions (pseudo local)
+#        all lower case; should be unset after use this temporary use
+# _local variables, lowercase leading underscore
+# ASSOCIATIVE_ARRAYS_[NOTE_FINAL_UNDERSCORE]
 # bracket all ${variables} for consistency
-# avoid $* and use "$@" instead (see absg)
-# unset and cleanup temp variables used in main
 
 # ----------------------------------------------------------------------
 # ENFORCE STYLES
@@ -33,10 +35,11 @@ TestFunc ()
 # scan for temp_globals that aren't unset
 # scan for Camel_Case in function declarations
 
-# requires:
-# wget
-# packer (can install automatically)
+# ----------------------------------------------------------------------
+# SCRIPT EXECUTION SETTINGS
+# ----------------------------------------------------------------------
 
+SCRIPTNAME="$(basename $0)"
 DEBUG=${DEBUG:-}
 set -o nounset # -u : disallow unset variable use
 set -o errexit # -e : exit on any trivial error
@@ -58,16 +61,11 @@ AUR_HELPER=${AUR_HELPER:-packer}
 # SCRIPT DEFAULTS
 # ----------------------------------------------------------------------
 
-SCRIPTNAME="$(basename $0)"
 LIBS_DIRPATH="/usr/share/${SCRIPTNAME}/lib"
 LIBS_DIRPATH="$(dirname $0)/lib" # TODO: remove this
 CMDLINE_OPTIONS="${@}" # global so we can use in functions easily
 INSTALL_BACKUP_SUFFIX=".${SCRIPTNAME}" # cf man install
 INSTALL_BACKUP_MODE=simple # cf man install
-PACKAGES_[FILENAME]="packages"
-AUR_[FILENAME]="aur"
-OVERLAY_[FILENAME]="overlay"
-OVERLAY_[DIRNAME]="${OVERLAY_[FILENAME]}.d"
 
 # ----------------------------------------------------------------------
 # DYNAMIC ASSOCIATIVE ARRAYS
@@ -83,6 +81,15 @@ for filename in $0 $LIBS_DIRPATH/*; do
 for assoc_array in $(egrep '^[^#]*_(\[.*\])?[+=]' $filename | sed \
     's/\(^\|^.*\W\)\(\w*_\)[\[\=\].*/\2/' | sort | uniq)
     do eval "declare -A $assoc_array"; done; done; unset filename
+
+# ----------------------------------------------------------------------
+# SNAPSHOT FILENAMES
+# ----------------------------------------------------------------------
+
+PACKAGES_[FILENAME]="packages"
+AUR_[FILENAME]="aur"
+OVERLAY_[FILENAME]="overlay"
+OVERLAY_[DIRNAME]="${OVERLAY_[FILENAME]}.d"
 
 # ----------------------------------------------------------------------
 # LIBS
