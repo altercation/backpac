@@ -81,7 +81,7 @@ Execute_With_Failsafe_Rollback ()
     eval "${_previous_traps}"
 }
 
-Debug () { echo ">>> DEBUG >>> $1 >>> DEBUG >>>"; }
+Debug () { echo -e ">>> DEBUG: EXECUTING ${FUNCNAME[1]} AT LINE ${BASH_LINENO[0]}${*:+ >>> }${*:-}"; }
 Is_True () { case $(Lower_Case ${1:-}) in true|yes|1|y|set) return 0 ;; *) return 1 ;; esac; }
 Upper_Case () { echo -n "$*" | tr '[:lower:]' '[:upper:]'; }
 Lower_Case () { echo -n "$*" | tr '[:upper:]' '[:lower:]'; }
@@ -127,12 +127,16 @@ UI_Passive_Alert ()
 {
     eval "local _alert=\"\\n${1}\""
     echo -e "${_alert}"
-    #eval "echo -e \"\\n${1}\""
 }
 UI_Active_Alert ()
 {
     eval eval "echo -e \"\\n${1}\""
     Query "Proceed?"
+}
+UI_Incremental_Alert ()
+{
+    #eval "local _alert=\"\\n${1}\""
+    [[ -n ${1:-} ]] && echo -ne "${1}" || echo
 }
 UI_Passive_Warning ()
 {
@@ -269,26 +273,31 @@ Set_Op_Union ()
     local _set_a="${1}"
     local _set_b="${2}"
     # should be using clean data, but we shouldn't trust in that
-    _set_a="$(echo ${_set_a} | Data_To_Normalized_List)"
-    _set_b="$(echo ${_set_b} | Data_To_Normalized_List)"
-    echo $_set_a $_set_b | Data_To_Normalized_List
+    _set_a="$(echo ${_set_a} | Normalize_To_List)"
+    _set_b="$(echo ${_set_b} | Normalize_To_List)"
+    echo $_set_a $_set_b | Normalize_To_List
 }
 Set_Op_Intersection ()
 {
     local _set_a="${1}"
     local _set_b="${2}"
     # should be using clean data, but we shouldn't trust in that
-    _set_a="$(echo ${_set_a} | Data_To_Normalized_List)"
-    _set_b="$(echo ${_set_b} | Data_To_Normalized_List)"
+    _set_a="$(echo ${_set_a} | Normalize_To_List)"
+    _set_b="$(echo ${_set_b} | Normalize_To_List)"
     echo "$(comm -12 <(echo "${_set_a}") <(echo "${_set_b}"))"
 }
 Set_Op_Difference ()
 {
+    echo ">>>>>>>>>>>>> HERE"
     local _set_a="${1}"
     local _set_b="${2}"
     # should be using clean data, but we shouldn't trust in that
-    _set_a="$(echo ${_set_a} | Data_To_Normalized_List)"
-    _set_b="$(echo ${_set_b} | Data_To_Normalized_List)"
+    _set_a="$(echo ${_set_a} | Normalize_To_List)"
+    _set_b="$(echo ${_set_b} | Normalize_To_List)"
+    echo ">>>>>>>>>>>>> 2"
+    Debug "----------------------------------"
+    Debug "_set_a"
+    Debug "$(echo $_set_a)"
     echo "$(comm -23 <(echo "${_set_a}") <(echo "${_set_b}"))"
 }
 
@@ -315,7 +324,7 @@ Normalize_List ()
 # --
 # If input data is given as variable name, variable can be array or list
 # and list can be newline or space separated items
-Data_To_Normalized_Array ()
+Normalize_To_Array ()
 {
     if [[ -n ${2:-} ]]
     then
@@ -345,7 +354,7 @@ Data_To_Normalized_Array ()
 # --
 # If input data is given as variable name, variable can be array or list
 # and list can be newline or space separated items
-Data_To_Normalized_List ()
+Normalize_To_List ()
 {
     if [[ -n ${2:-} ]]
     then

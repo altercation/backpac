@@ -274,28 +274,34 @@ OVERLAY_[DIRPATH]="${SNAPSHOT_DIRPATH}/${OVERLAY_[DIRNAME]}"
 OVERLAY_[FILE]=\
 "$(Read_File_Drop_Comments ${OVERLAY_[FILEPATH]})"
 PACKAGES_[FILE]=\
-"$(Read_File_Drop_Comments ${PACKAGES_[FILEPATH]} | Normalize_List)"
+"$(Read_File_Drop_Comments ${PACKAGES_[FILEPATH]} | Normalize_To_List)"
 AUR_[FILE]=\
-"$(Read_File_Drop_Comments ${AUR_[FILEPATH]} | Normalize_List)"
+"$(Read_File_Drop_Comments ${AUR_[FILEPATH]} | Normalize_To_List)"
 
 if Is_True $DEBUG
 then
-Unit_Report "\nLOADED OVERLAY FILE from ${OVERLAY_[FILEPATH]}:"
-Unit_Report "${OVERLAY_[FILE]}"
 Unit_Report "\nLOADED PACKAGES FILE from ${PACKAGES_[FILEPATH]}:"
 Unit_Report "$(echo ${PACKAGES_[FILE]})"
 Unit_Report "\nLOADED AUR FILE from ${AUR_[FILEPATH]}:"
 Unit_Report "$(echo ${AUR_[FILE]})"
+Unit_Report "\nLOADED OVERLAY FILE from ${OVERLAY_[FILEPATH]}:"
+Unit_Report "${OVERLAY_[FILE]}"
 fi
+
+[[ -n ${OVERLAY_[FILE]} ]] \
+|| Unit_Report "No overlay file list. To save a snapshot of specific system 
+configuration files, make a line by line list of file paths in the following 
+file: ${OVERLAY_[FILEPATH]}"
 
 }
 
 UNIT_InitializeSystemState ()
 {
+
 # DETECT GROUPS
 # ----------------------------------------------------------------------
 GROUPS_[POTENTIAL]=$(pacman -Qg | awk '{print $1}' | sort -u)
-UI_Passive_Alert "Detecting installed groups..."
+UI_Incremental_Alert "\nDetecting installed groups... "
 if Is_True $DEBUG
 then
     GROUPS_[DETECTED]="base base-devel xfce4 xorg xorg-apps xorg-drivers xorg-fonts" #DEBUG
@@ -304,39 +310,133 @@ else
     for _group in ${GROUPS_[POTENTIAL]}
     do
         # get percentage of group already installed
-        # sort and uniq are required as there can be duplicate package reporting if 
-        # testing repos are live, for instance
-        local _group_count_local=$(pacman -Qgq $_group | sort -u | wc -l)
-        local _group_count_repo=$(pacman -Sgq $_group | sort -u | wc -l)
+        # sort -u required (via Normalize_To_List) as there can be duplicate package 
+        # reporting if testing repos are live, for instance
+        GROUP_PACKAGES_LOCAL_[${_group}]="$(pacman -Qgq $_group)"
+        GROUP_PACKAGES_REPO_[${_group}]="$(pacman -Sgq $_group)"
+        local _group_count_local=$(echo ${GROUP_PACKAGES_LOCAL_[${_group}]} \
+            | Normalize_To_List | wc -l)
+        local _group_count_repo=$(echo ${GROUP_PACKAGES_REPO_[${_group}]} \
+            | Normalize_To_List | wc -l)
         local _threshold=12
         local _score=$(echo $((($_group_count_repo*10)/$_group_count_local)))
         if [[ $_score -le $_threshold ]]
         then
             GROUPS_[DETECTED]+="$_group "
-            echo -n "$_group "
-            #echo "(scored $score; marked INSTALLED)"
-        else
-            #echo "(scored $score)"
-            :
+            UI_Incremental_Alert "$_group "
         fi
     done
-    echo
+    UI_Incremental_Alert # finishes the incremental alert line
 fi
 Unit_Report "FULLY INSTALLED GROUPS (DETECTED):\n${GROUPS_[DETECTED]}"
-}
 
-UNIT_InitializeRepositoryState ()
-{
-# diff snapshot and system state into globals
-# (herein it's pseudo functional)
-:
-}
+# CHECK GROUP FOR NEW/REMOVED PACKAGES
+# ----------------------------------------------------------------------
+local _group
+for _group in ${GROUPS_[DETECTED]}
+do
+    GROUP_PACKAGES_MISSING_IN_GROUP_[$_group]=$(Set_Op_Difference \
+        "${GROUP_PACKAGES_LOCAL_[${_group}]}" \
+        "${GROUP_PACKAGES_REPO_[${_group}]}")
+    exit
+    GROUP_PACKAGES_REMOVED_FROM_GROUP_[$_group]=$(Set_Op_Difference \
+        "${GROUP_PACKAGES_REPO_[${_group}]}" \
+        "${GROUP_PACKAGES_LOCAL_[${_group}]}")
+    echo ">>>>> ${_group} >>> ${GROUP_PACKAGES_MISSING_IN_GROUP_[$_group]}"
+    [[ -z ${GROUP_PACKAGES_MISSING_IN_GROUP_[$_group]:-} ]] \
+    || Unit_Report "\nPACKAGES ADDED TO GROUP "${_group}" BUT NOT INSTALLED ON LIVE SYSTEM:\n$(echo ${GROUP_PACKAGES_MISSING_IN_GROUP_[$_group]})"
+    [[ -z ${GROUP_PACKAGES_REMOVED_FROM_GROUP_[$_group]:-} ]] \
+    || Unit_Report "\nPACKAGES CURRENTLY INSTALLED AS PART OF GROUP "${_group}" HAVE SINCE BEEN REMOVED FROM GROUP:\n$(echo ${GROUP_PACKAGES_REMOVED_FROM_GROUP_[$_group]})"
+done
 
-UNIT_InitializeStateDifferential ()
-{
-# diff snapshot and system state into globals
-# (herein it's pseudo functional)
-:
+# PACKAGE STATE
+# ----------------------------------------------------------------------
+
+UI_Passive_Alert "Getting list of explicitly installed packages"
+# TODO: deal with timeline of updating the group packages
+#PACKAGES_LOCAL_[ALLGROUPS]="$(pacman -Qgq | Normalize_To_List)"
+local _packages_groups="$(echo "${GROUP_PACKAGES_LOCAL_[*]}" | Normalize_To_List)"
+local _packages_explicit="$(pacman -Qeq)"
+local _packages_manual="$(pacman -Qmq)"
+local _packages_repo="$(Set_Op_Difference "${_packages_explicit}" "${_packages_manual}")"
+local _packages_noaur="$(Set_Op_Difference "${_packages_explicit}" "${_packages_manual}")"
+PACKAGES_[LIVE]="$(Set_Op_Difference "${_packages_repo}" "${_packages_groups}")"
+AUR_[LIVE]="$(Set_Op_Intersection "${_packages_explicit}" "${_packages_manual}")"
+
+PACKAGES_MISSING_IN_[LIVE]="$(Set_Op_Difference "${PACKAGES_[FILE]}" "${PACKAGES_[LIVE]}")"
+PACKAGES_MISSING_IN_[FILE]="$(Set_Op_Difference "${PACKAGES_[LIVE]}" "${PACKAGES_[FILE]}")"
+AUR_MISSING_IN_[LIVE]="$(Set_Op_Difference "${AUR_[FILE]}" "${AUR_[LIVE]}")"
+AUR_MISSING_IN_[FILE]="$(Set_Op_Difference "${AUR_[LIVE]}" "${AUR_[FILE]}")"
+
+Unit_Report "\nOFFICIAL PACKAGES (EXCL. DEPENDENCIES, NO GROUP PACKAGES):"
+Unit_Report ${PACKAGES_[LIVE]:-NONE}
+Unit_Report "\nAUR PACKAGES (EXCL. DEPENDENCIES):"
+Unit_Report ${AUR_[LIVE]:-NONE}
+
+[[ -z ${PACKAGES_MISSING_IN_[LIVE]:-} ]] \
+|| Unit_Report "\nSNAPSHOT PACKAGES NOT INSTALLED ON LIVE SYSTEM:
+$(echo ${PACKAGES_MISSING_IN_[LIVE]})"
+
+[[ -z ${AUR_MISSING_IN_[LIVE]:-} ]] \
+|| Unit_Report "\nSNAPSHOT AUR PACKAGES NOT INSTALLED ON LIVE SYSTEM:
+${AUR_MISSING_IN_[LIVE]})"
+
+[[ -z ${PACKAGES_MISSING_IN_[FILE]:-} ]] \
+|| Unit_Report "\nPACKAGES INSTALLED ON LIVE SYSTEM BUT NOT IN SNAPSHOT:
+$(echo ${PACKAGES_MISSING_IN_[FILE]})"
+
+[[ -z ${AUR_MISSING_IN_[FILE]:-} ]] \
+|| Unit_Report "\nAUR PACKAGES INSTALLED ON LIVE SYSTEM BUT NOT IN SNAPSHOT:
+$(echo ${AUR_MISSING_IN_[FILE]})"
+
+# OVERLAY FILE CHECK
+# ----------------------------------------------------------------------
+
+# state of overlay files list from snapshot:
+# - missing (no current snapshot directory)
+# - missing (snapshot doesn't have an overlay list)
+# - present but handbuilt (no permissions or ownership, just paths)
+# - present and correctly formed
+#
+# Here we scan through the overlay list if we have it, compare against current 
+# system values and do the following:
+# - normalize the overlay list format listing in memory, filling in missing
+#   permissions and ownership values from the live system if file is present
+#   and from the default attribs value if no file is on the live system
+# - record the names of any missing system files listed in the config for
+#   report purposes
+# - record the names and report the diff value of any files that differ from
+#   the live system
+
+UI_Passive_Alert "Checking overlay files"
+DEFAULT_ATTRIBS="644 root root"
+
+_IFS=$IFS; IFS=$'\n'
+for line in ${OVERLAY_[FILE]}
+do
+    _path=$(echo -n $line | awk '{print $1}')
+    _attribs=$(echo -n $line | awk '{print $2,$3,$4}')
+    [[ -e $_path ]] && _live_attribs=$(stat -c '%a %U %G' $_path)
+    [[ -z $_attribs && -e $_path ]] && _attribs=$_live_attribs
+    #TODO: may be better to not set default values in case of no current live file
+    #[[ -z $_attribs ]] && _attribs=$DEFAULT_ATTRIBS
+    overlay_files[reviewed]+="$_path $_attribs\n"
+    [[ -e $_path ]] && overlay_files[live]+="$_path $_live_attribs\n" || overlay_files[live]+="$_path $_attribs\n"
+    overlay_files[paths]+="$_path\n"
+done
+IFS=$_IFS
+overlay_files[file]="$(echo -e "${overlay_files[reviewed]}" | sed '/^$/d')"
+overlay_files[live]="$(echo -e "${overlay_files[live]}" | sed '/^$/d')"
+overlay_files[paths]="$(echo -e "${overlay_files[paths]}" | sed '/^$/d')"
+overlay_files[diff]="$(compare "${overlay_files[live]}" "${overlay_files[file]}")"
+report overlay "Overlay file list:"
+report overlay "${overlay_files[file]}"
+if [[ -n ${overlay_files[diff]} ]]
+then
+    report overlay "\nOverlay file items that differ from the live system"
+    report overlay "${overlay_files[diff]}"
+fi
+
 }
 
 UNIT_UpdateSnapshot ()
@@ -401,90 +501,5 @@ exit
 
 
 
-# ----------------------------------------------------------------------
-# GROUP STATE
-# ----------------------------------------------------------------------
-# group check
-#echo -en "$HR\nPackage groups installed: "
-#echo ${groups[live]} 
-#echo
-progress "Checking installed groups for new/removed packages"
-for groupname in ${groups[live]}
-do
-    all_clear=true
-    grouprepo="$(pacman -Sgq $groupname)"; grouplocal="$(pacman -Qgq $groupname)"
-    packages_official_grouped_missing[$groupname]=$(compare "$grouprepo" "$grouplocal")
-    packages_official_grouped_removed[$groupname]=$(compare "$grouplocal" "$grouprepo")
-    if [[ -n ${packages_official_grouped_missing[$groupname]} ]]
-    then
-        report groups $groupname groups has new packages that can be installed: ${packages_official_grouped_missing[$groupname]}
-        all_clear=false
-    fi
-    if [[ -n ${packages_official_grouped_removed[$groupname]} ]]
-    then
-        report groups $groupname groups has removed packages\; the following can be removed locally: ${packages_official_grouped_removed[$groupname]}
-        all_clear=false
-    fi
-done
-$(istrue $all_clear) && report groups "All group package lists are up to date"
 
-# ----------------------------------------------------------------------
-# PACKAGE STATE
-# ----------------------------------------------------------------------
-progress "Getting list of explicitly installed packages (official)"
-packages_official[live]="$(compare "$(compare "$(pacman -Qeq)" "$(pacman -Qmq)")" "$(pacman -Qgq ${groups[live]})")"
-progress "Getting list of explicitly installed packages (AUR)"
-packages_aur[live]="$(common "$(pacman -Qeq)" "$(pacman -Qmq)")"
-report packages "OFFICIAL PACKAGES (EXCL. DEPENDENCIES, NO GROUP PACKAGES):"
-report packages ${packages_official[live]:-NONE}
-report packages "\nAUR PACKAGES (EXCL. DEPENDENCIES):"
-report packages ${packages_aur[live]:-NONE}
-
-missing_official_from[system]="$(compare "${packages_official[file]}" "${packages_official[live]}")"
-missing_official_from[config]="$(compare "${packages_official[live]}" "${packages_official[file]}")"
-missing_aur_from[system]="$(compare "${packages_aur[file]}" "${packages_aur[live]}")"
-missing_aur_from[config]="$(compare "${packages_aur[live]}" "${packages_aur[file]}")"
-[[ -n ${missing_official_from[system]} ]] \
-    && report packages "\nMISSING: The $CMD config includes the following packages that are not installed on the system:" \
-    && report packages $(echo ${missing_official_from[system]})
-[[ -n ${missing_official_from[config]} ]] \
-    && report packages "\nMISSING: The system contains the following installed packages that are missing from your $CMD config:" \
-    && report packages $(echo ${missing_official_from[config]})
-[[ -n ${missing_aur_from[system]} ]] \
-    && report packages "\nMISSING: The $CMD config includes the following AUR packages that are not installed on the system:" \
-    && report packages $(echo ${missing_official_from[system]})
-[[ -n ${missing_aur_from[config]} ]] \
-    && report packages "\nMISSING: The system contains the following installed AUR packages that are missing from your $CMD config:" \
-    && report packages $(echo ${missing_official_from[config]})
-
-# ----------------------------------------------------------------------
-# OVERLAY FILES STATE
-# ----------------------------------------------------------------------
-progress "Checking overlay files"
-DEFAULT_ATTRIBS="644 root root"
-_IFS=$IFS; IFS=$'\n'
-for line in ${overlay_files[file]}
-do
-    _path=$(echo -n $line | awk '{print $1}')
-    _attribs=$(echo -n $line | awk '{print $2,$3,$4}')
-    [[ -e $_path ]] && _live_attribs=$(stat -c '%a %U %G' $_path)
-    [[ -z $_attribs && -e $_path ]] && _attribs=$_live_attribs
-    #TODO: may be better to not set default values in case of no current live file
-    #[[ -z $_attribs ]] && _attribs=$DEFAULT_ATTRIBS
-    overlay_files[reviewed]+="$_path $_attribs\n"
-    [[ -e $_path ]] && overlay_files[live]+="$_path $_live_attribs\n" || overlay_files[live]+="$_path $_attribs\n"
-    overlay_files[paths]+="$_path\n"
-done
-IFS=$_IFS
-overlay_files[file]="$(echo -e "${overlay_files[reviewed]}" | sed '/^$/d')"
-overlay_files[live]="$(echo -e "${overlay_files[live]}" | sed '/^$/d')"
-overlay_files[paths]="$(echo -e "${overlay_files[paths]}" | sed '/^$/d')"
-overlay_files[diff]="$(compare "${overlay_files[live]}" "${overlay_files[file]}")"
-report overlay "Overlay file list:"
-report overlay "${overlay_files[file]}"
-if [[ -n ${overlay_files[diff]} ]]
-then
-    report overlay "\nOverlay file items that differ from the live system"
-    report overlay "${overlay_files[diff]}"
-fi
 
