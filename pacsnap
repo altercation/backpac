@@ -10,61 +10,6 @@ TestFunc ()
     exit
 }
 
-# requires:
-# wget
-# packer (can install automatically)
-
-DEBUG=${DEBUG:-}
-set -o nounset # -u : disallow unset variable use
-set -o errexit # -e : exit on any trivial error
-[[ -z $DEBUG ]] || set -o verbose # -v : talkative bash DEBUG
-
-# ----------------------------------------------------------------------
-# DEFAULTS
-# ----------------------------------------------------------------------
-SCRIPTNAME="$(basename $0)"
-LIBS_DIRPATH="/usr/share/${SCRIPTNAME}/lib"
-LIBS_DIRPATH="$(dirname $0)/lib" # TODO: remove this
-CMDLINE_OPTIONS="${@}" # global so we can use in functions easily
-# Snapshot directory. Override this in your environment with PACSNAP_DIRECTORY
-DEFAULT_SNAPSHOT_DIRPATH="${PACSNAP_DIRECTORY:-${XDG_CONFIG_HOME}/${SCRIPTNAME}/${HOSTNAME}}"
-# AUR helper. Override with in your environment with AUR_HELPER
-# must support basic pacman command line options (-S, -Q, etc.)
-AUR_HELPER=${AUR_HELPER:-packer}
-
-# ----------------------------------------------------------------------
-# DYNAMIC ASSOCIATIVE ARRAYS
-# ----------------------------------------------------------------------
-# This allows associative arrays to be used like normal bash variables without 
-# explicitly declaring them if the are suffixed by an underscore:
-#
-#     I_AM_AN_ASSOCIATIVE_ARRAY_[INDEED]
-#
-# The following oneliner will declare them here. Note that this means eval'd
-# array variable names will be invisible to this oneliner. Also, onle the first
-# associative array variable name on a line will be scanned (TODO: fix this).
-
-for filename in $0 $LIBS_DIRPATH/*
-do
-for assoc_array in $(egrep '^[^#]*_(\[.*\])?[+=]' $filename | sed \
-    's/\(^\|^.*\W\)\(\w*_\)[\[\=\].*/\2/' | sort | uniq)
-    do
-        eval "declare -A $assoc_array"
-    done
-done
-unset filename
-
-# ----------------------------------------------------------------------
-# DEFAULT SNAPSHOT FILENAMES AND BACKUP OPTIONS
-# ----------------------------------------------------------------------
-PACKAGES_[FILENAME]="packages"
-AUR_[FILENAME]="aur"
-OVERLAY_[FILENAME]="overlay"
-OVERLAY_[DIRNAME]="${OVERLAY_[FILENAME]}.d"
-# see man install for information on how this is used
-INSTALL_BACKUP_SUFFIX=".${SCRIPTNAME}" #BACKUP_SUFFIX="$CMD-$(date +%F-%s)"
-INSTALL_BACKUP_MODE=simple
-
 # ----------------------------------------------------------------------
 # STYLE GUIDE
 # ----------------------------------------------------------------------
@@ -88,41 +33,67 @@ INSTALL_BACKUP_MODE=simple
 # scan for temp_globals that aren't unset
 # scan for Camel_Case in function declarations
 
+# requires:
+# wget
+# packer (can install automatically)
+
+DEBUG=${DEBUG:-}
+set -o nounset # -u : disallow unset variable use
+set -o errexit # -e : exit on any trivial error
+[[ -z $DEBUG ]] || set -o verbose # -v : talkative bash DEBUG
+
+# ----------------------------------------------------------------------
+# USER DEFAULTS
+# ----------------------------------------------------------------------
+# Don't change these here. Set in your shell's environment variables.
+
+# Snapshot directory. Override this in your environment with PACSNAP_DIRECTORY
+DEFAULT_SNAPSHOT_DIRPATH="${PACSNAP_DIRECTORY:-${XDG_CONFIG_HOME}/${SCRIPTNAME}/${HOSTNAME}}"
+
+# AUR helper. Override with in your environment with AUR_HELPER
+# must support basic pacman command line options (-S, -Q, etc.)
+AUR_HELPER=${AUR_HELPER:-packer}
+
+# ----------------------------------------------------------------------
+# SCRIPT DEFAULTS
+# ----------------------------------------------------------------------
+
+SCRIPTNAME="$(basename $0)"
+LIBS_DIRPATH="/usr/share/${SCRIPTNAME}/lib"
+LIBS_DIRPATH="$(dirname $0)/lib" # TODO: remove this
+CMDLINE_OPTIONS="${@}" # global so we can use in functions easily
+INSTALL_BACKUP_SUFFIX=".${SCRIPTNAME}" # cf man install
+INSTALL_BACKUP_MODE=simple # cf man install
+PACKAGES_[FILENAME]="packages"
+AUR_[FILENAME]="aur"
+OVERLAY_[FILENAME]="overlay"
+OVERLAY_[DIRNAME]="${OVERLAY_[FILENAME]}.d"
+
+# ----------------------------------------------------------------------
+# DYNAMIC ASSOCIATIVE ARRAYS
+# ----------------------------------------------------------------------
+# This allows associative arrays to be used like normal bash variables without 
+# explicitly declaring them if the are suffixed by an underscore:
+# I_AM_AN_ASSOCIATIVE_ARRAY_[INDEED]
+# Note: evaluated variable names ( eval I_MAY_${BE_AN_ASSOC}_[ARRAY] ) will not 
+# be detected by this unless referenced somewhere else in its full form.
+# TODO: only the first associative arary on a line will be detected; improve.
+
+for filename in $0 $LIBS_DIRPATH/*; do
+for assoc_array in $(egrep '^[^#]*_(\[.*\])?[+=]' $filename | sed \
+    's/\(^\|^.*\W\)\(\w*_\)[\[\=\].*/\2/' | sort | uniq)
+    do eval "declare -A $assoc_array"; done; done; unset filename
+
 # ----------------------------------------------------------------------
 # LIBS
 # ----------------------------------------------------------------------
+
 for filename in $LIBS_DIRPATH/* ; do source $filename; done; unset filename
-
-TestFunc # DEBUG
-
-#TODO: each module should lay out it's report structure in a list, or even in 
-#functions which automatically add to a list (a dfunc like initial function in 
-#each, along with a smarter report function that takes the function name 
-#automatically.
-
-#sequences:
-#initialize: read_options, report_options, process_options, locate_config, read_config
-#readstate: detect_groups, check_groups, check_repo_packages, check_aur_packages
-#updateconfig: review_and_conform_packages review_and_conform_overlay
-#updatesystem
-
-#seq_initialize=
-#prepare_work_environment
-
-#state:
-
-#packages_repo_live
-#packages_repo_file
-
-#packages_repo_live - missing (possibly to add)
-#packages_repo_file - missing (possibly to add)
-
-#packages_group missing (probably to add)
-#series_result_[series1]=series "step1 step2 step3"
 
 # ----------------------------------------------------------------------
 # COMMAND LINE OPTIONS, RUNTIME OPTION REPORT VALUES & HELP
 # ----------------------------------------------------------------------
+
 OPT_BACKUP_=(
 [FLAG]='b'
 [STATE]='true'
@@ -203,7 +174,7 @@ overlay list and files) prior to the new snapshot creation.'
 )
 
 # ----------------------------------------------------------------------
-# EXECUTION
+# EXECUTION SEQUENCE
 # ----------------------------------------------------------------------
 
 UNIT_SEQUENCE="
@@ -225,6 +196,10 @@ InitializeSystemState
 ReportResults
 CleanUpEnvironment
 "
+
+# ----------------------------------------------------------------------
+# EXECUTION UNITS
+# ----------------------------------------------------------------------
 
 TRAP_Alert ()
 {
