@@ -1,0 +1,508 @@
+#!/bin/bash
+
+TestFunc ()
+{
+    return
+    _testval="a b c d 3 e e ff a g h"
+    _testval1="1 2 7 d 3 3 77  4     5 7 77 i 7 6"
+    #echo $(echo $_testval | Data_To_Sorted_List)
+    Set_Op_Difference "$_testval" "$_testval1"
+    exit
+}
+
+# requires:
+# wget
+# packer (can install automatically)
+
+DEBUG=${DEBUG:-}
+set -o nounset # -u : disallow unset variable use
+set -o errexit # -e : exit on any trivial error
+[[ -z $DEBUG ]] || set -o verbose # -v : talkative bash DEBUG
+
+# ----------------------------------------------------------------------
+# DEFAULTS
+# ----------------------------------------------------------------------
+SCRIPTNAME="$(basename $0)"
+LIBS_DIRPATH="/usr/share/${SCRIPTNAME}/lib"
+LIBS_DIRPATH="$(dirname $0)/lib" # TODO: remove this
+CMDLINE_OPTIONS="${@}" # global so we can use in functions easily
+# Snapshot directory. Override this in your environment with PACSNAP_DIRECTORY
+DEFAULT_SNAPSHOT_DIRPATH="${PACSNAP_DIRECTORY:-${XDG_CONFIG_HOME}/${SCRIPTNAME}/${HOSTNAME}}"
+# AUR helper. Override with in your environment with AUR_HELPER
+# must support basic pacman command line options (-S, -Q, etc.)
+AUR_HELPER=${AUR_HELPER:-packer}
+
+# ----------------------------------------------------------------------
+# DYNAMIC ASSOCIATIVE ARRAYS
+# ----------------------------------------------------------------------
+# This allows associative arrays to be used like normal bash variables without 
+# explicitly declaring them if the are suffixed by an underscore:
+#
+#     I_AM_AN_ASSOCIATIVE_ARRAY_[INDEED]
+#
+# The following oneliner will declare them here. Note that this means eval'd
+# array variable names will be invisible to this oneliner. Also, onle the first
+# associative array variable name on a line will be scanned (TODO: fix this).
+
+for filename in $0 $LIBS_DIRPATH/*
+do
+for assoc_array in $(egrep '^[^#]*_(\[.*\])?[+=]' $filename | sed \
+    's/\(^\|^.*\W\)\(\w*_\)[\[\=\].*/\2/' | sort | uniq)
+    do
+        eval "declare -A $assoc_array"
+    done
+done
+unset filename
+
+# ----------------------------------------------------------------------
+# DEFAULT SNAPSHOT FILENAMES AND BACKUP OPTIONS
+# ----------------------------------------------------------------------
+PACKAGES_[FILENAME]="packages"
+AUR_[FILENAME]="aur"
+OVERLAY_[FILENAME]="overlay"
+OVERLAY_[DIRNAME]="${OVERLAY_[FILENAME]}.d"
+# see man install for information on how this is used
+INSTALL_BACKUP_SUFFIX=".${SCRIPTNAME}" #BACKUP_SUFFIX="$CMD-$(date +%F-%s)"
+INSTALL_BACKUP_MODE=simple
+
+# ----------------------------------------------------------------------
+# STYLE GUIDE
+# ----------------------------------------------------------------------
+#each function can make no assumptions about state
+#calling a function should not change state (unless it is false state)
+#Global_Functions_Camel_Case_No_Leading_Underscore
+#_Local_Functions_Camel_Case_o_Leading_Underscore
+#GLOBALS
+#globals to be used as function locals or loop temp vars (should be unset)
+#_locals
+#ASSOCIATIVE_ARRAYS_[NOTE_FINAL_UNDERSCORE]
+# bracket all ${variables} for consistency
+# avoid $* and use "$@" instead (see absg)
+# unset and cleanup temp variables used in main
+
+# ----------------------------------------------------------------------
+# ENFORCE STYLES
+# ----------------------------------------------------------------------
+# scan for _locals outside of a function
+# scan for _Local_Functions outside of a function
+# scan for temp_globals that aren't unset
+# scan for Camel_Case in function declarations
+
+# ----------------------------------------------------------------------
+# LIBS
+# ----------------------------------------------------------------------
+for filename in $LIBS_DIRPATH/* ; do source $filename; done; unset filename
+
+TestFunc # DEBUG
+
+#TODO: each module should lay out it's report structure in a list, or even in 
+#functions which automatically add to a list (a dfunc like initial function in 
+#each, along with a smarter report function that takes the function name 
+#automatically.
+
+#sequences:
+#initialize: read_options, report_options, process_options, locate_config, read_config
+#readstate: detect_groups, check_groups, check_repo_packages, check_aur_packages
+#updateconfig: review_and_conform_packages review_and_conform_overlay
+#updatesystem
+
+#seq_initialize=
+#prepare_work_environment
+
+#state:
+
+#packages_repo_live
+#packages_repo_file
+
+#packages_repo_live - missing (possibly to add)
+#packages_repo_file - missing (possibly to add)
+
+#packages_group missing (probably to add)
+#series_result_[series1]=series "step1 step2 step3"
+
+# ----------------------------------------------------------------------
+# COMMAND LINE OPTIONS, RUNTIME OPTION REPORT VALUES & HELP
+# ----------------------------------------------------------------------
+OPT_BACKUP_=(
+[FLAG]='b'
+[STATE]='true'
+[STATE_SET]='false'
+[ALERT]='Backups OFF; Files will be overwritten.'
+[ALERT_SET]='Backups ON; Files will be saved in place with backup suffix.'
+[USAGE]='Backup files when copying new file to existing path.'
+)
+OPT_FORCE_=(
+[FLAG]='f'
+[STATE]='false'
+[STATE_SET]='true'
+[ALERT]='Force mode OFF; Prompt before file write operations.'
+[ALERT_SET]='Force mode ON; No prompts presented (CAUTION).'
+[USAGE]='Force all write operations; no prompts will be given.'
+)
+OPT_GIT_UPDATE_=(
+[FLAG]='g'
+[STATE]='false'
+[STATE_SET]='true'
+[ALERT]='Git update OFF; No git push after config update.'
+[ALERT_SET]='Git update ON; Git push will occur after config update.'
+[USAGE]='Git commit and push snapshot directory if it is a repository.'
+)
+OPT_PACMAN_UPDATE_=(
+[FLAG]='y'
+[STATE]='false'
+[STATE_SET]='true'
+[ALERT]='Pacman update OFF; Package list will not be refreshed.'
+[ALERT_SET]='Pacman update ON; Package list will be downloaded.'
+[USAGE]='Update pacman package master list (pacman -Sy).'
+)
+OPT_SNAPSHOT_DIRPATH_=(
+[FLAG]='p:'
+[STATE]="${DEFAULT_SNAPSHOT_DIRPATH}"
+[STATE_SET]=''
+[ALERT]="Custom snapshot path OFF; Path is ${DEFAULT_SNAPSHOT_DIRPATH}."
+[ALERT_SET]='Custom snapshot path ON; Path is ${SNAPSHOT_DIRPATH}.'
+[USAGE]='Specify full path to a custom snapshot directory.'
+)
+OPT_SYSTEM_RESTORE_=(
+[FLAG]='s'
+[STATE]='false'
+[STATE_SET]='true'
+[CONFLICTS]='SNAPSHOT_UPDATE'
+[ALERT]='System update OFF; No system files will be updated.'
+[ALERT_SET]='System update ON; Live system files will be overwritten.'
+[USAGE]='Update LIVE system files/packages from snapshot.'
+[WARN_CONDITION]='FORCE'
+[WARNING]='
+$SCRIPTNAME SYSTEM RESTORE being run in FORCE OVERWRITE mode:
+
+* All snapshot packages will be installed.
+* Packages not listed in the snapshot will be removed.
+* New group packages will be installed.
+* Group packages no longer in a group will be removed.
+* Overlay files will be replaced automatically.
+
+Use the backup option to save current files (not packages) prior to overlay.'
+)
+OPT_SNAPSHOT_UPDATE_=(
+[FLAG]='u'
+[STATE]='false'
+[STATE_SET]='true'
+[ALERT]='Snapshot update OFF; Snapshot files will not be updated.'
+[ALERT_SET]='Snapshot update ON; Updated files saved to ${SNAPSHOT_DIRPATH}.'
+[USAGE]='Update files in snapshot directory.'
+[WARN_CONDITION]='FORCE'
+[WARNING]='
+$SCRIPTNAME SNAPSHOT UPDATE being run in FORCE OVERWRITE mode:
+
+* Packages in the snapshot but not installed will be removed from the snapshot.
+* Installed packages not listed in the snapshot will be added to the snapshot.
+* Overlay files listed in the snapshot will be saved in the snapshot directory.
+
+Use the backup option to save the current snapshot files (package lists and 
+overlay list and files) prior to the new snapshot creation.'
+)
+
+# ----------------------------------------------------------------------
+# EXECUTION
+# ----------------------------------------------------------------------
+
+UNIT_SEQUENCE="
+PrepareEnvironment
+InitializeOptions
+InitializeSnapshotState
+InitializeSystemState
+InitializeStateDifferential
+UpdateSnapshot
+UpdateSystem
+ReportResults
+CleanUpEnvironment
+"
+UNIT_SEQUENCE="
+PrepareEnvironment
+InitializeOptions
+InitializeSnapshotState
+InitializeSystemState
+ReportResults
+CleanUpEnvironment
+"
+
+TRAP_Alert ()
+{
+    echo -e "\nEARLY TERMINATION: Running Cleanup...\n"
+}
+
+UNIT_PrepareEnvironment ()
+{
+trap 'TRAP_Alert; UNIT_ReportResults; UNIT_CleanUpEnvironment' INT TERM EXIT
+TMPDIR="$(mktemp -d --tmpdir $SCRIPTNAME.XXX)"; CLEANUP+=('rm -rf $TMPDIR')
+Install_Package_From_AUR "$AUR_HELPER"
+
+# TODO: check config directory
+
+}
+
+UNIT_InitializeOptions ()
+{
+Options_Initialize || Fail_Critically "Error initializing options."
+local _option_summary="$(Options_Summary)"
+local _option_warning="$(Options_Warning)"
+[[ -z ${_option_summary:-} ]] || UI_Passive_Alert "$SCRIPTNAME\n\n${_option_summary}"
+[[ -z ${_option_warning:-} ]] || UI_Active_Warning "${_option_warning}"
+}
+
+UNIT_InitializeSnapshotState ()
+{
+# locate/make snapshot directory if in update snapshot mode, otherwise warn 
+# user and exit
+if [[ ! -d "${SNAPSHOT_DIRPATH}" ]]
+then
+    if Is_True ${SYSTEM_RESTORE}
+    then
+        local _alert=
+        if [[ "${SNAPSHOT_DIRPATH}" == "${DEFAULT_SNAPSHOT_DIRPATH}" ]]
+        then
+        _alert+="No snapshot directory found at default path ${SNAPSHOT_DIRPATH}.
+        Please run ${SCRIPTNAME} again in snapshot update mode (command line 
+        flag: -${OPT_SNAPSHOT_UPDATE_[FLAG]%:}) to automatically create 
+        a snapshot directory at this default location. Alternately, locate an 
+        existing snapshot directory (using the  
+        -${OPT_SNAPSHOT_DIRPATH_[FLAG]%:} <custompath> command line option)."
+        else
+        _alert="No snapshot directory found at custom path ${SNAPSHOT_DIRPATH}.
+        Please run ${SCRIPTNAME} again in snapshot update mode (command line 
+        flag: -${OPT_SNAPSHOT_UPDATE_[FLAG]%:}) to automatically create 
+        a snapshot directory at this custom location. Alternately, run again 
+        without the -${OPT_SNAPSHOT_DIRPATH_[FLAG]%:} <custompath> option to 
+        attempt to use the default snapshot directory 
+        (${DEFAULT_SNAPSHOT_DIRPATH})."
+        fi
+        UI_Passive_Warning "$(echo -e ${_alert})"
+        exit 0
+    else
+        mkdir -p ${SNAPSHOT_DIRPATH}
+        Unit_Report "Using snapshot directory at ${SNAPSHOT_DIRPATH}"
+    fi
+fi
+
+PACKAGES_[FILEPATH]="${SNAPSHOT_DIRPATH}/${PACKAGES_[FILENAME]}"
+AUR_[FILEPATH]="${SNAPSHOT_DIRPATH}/${AUR_[FILENAME]}"
+OVERLAY_[FILEPATH]="${SNAPSHOT_DIRPATH}/${OVERLAY_[FILENAME]}"
+OVERLAY_[DIRPATH]="${SNAPSHOT_DIRPATH}/${OVERLAY_[DIRNAME]}"
+
+OVERLAY_[FILE]=\
+"$(Read_File_Drop_Comments ${OVERLAY_[FILEPATH]})"
+PACKAGES_[FILE]=\
+"$(Read_File_Drop_Comments ${PACKAGES_[FILEPATH]} | Normalize_List)"
+AUR_[FILE]=\
+"$(Read_File_Drop_Comments ${AUR_[FILEPATH]} | Normalize_List)"
+
+if Is_True $DEBUG
+then
+Unit_Report "\nLOADED OVERLAY FILE from ${OVERLAY_[FILEPATH]}:"
+Unit_Report "${OVERLAY_[FILE]}"
+Unit_Report "\nLOADED PACKAGES FILE from ${PACKAGES_[FILEPATH]}:"
+Unit_Report "$(echo ${PACKAGES_[FILE]})"
+Unit_Report "\nLOADED AUR FILE from ${AUR_[FILEPATH]}:"
+Unit_Report "$(echo ${AUR_[FILE]})"
+fi
+
+}
+
+UNIT_InitializeSystemState ()
+{
+# DETECT GROUPS
+# ----------------------------------------------------------------------
+GROUPS_[POTENTIAL]=$(pacman -Qg | awk '{print $1}' | sort -u)
+UI_Passive_Alert "Detecting installed groups..."
+if Is_True $DEBUG
+then
+    GROUPS_[DETECTED]="base base-devel xfce4 xorg xorg-apps xorg-drivers xorg-fonts" #DEBUG
+else
+    local _group
+    for _group in ${GROUPS_[POTENTIAL]}
+    do
+        # get percentage of group already installed
+        # sort and uniq are required as there can be duplicate package reporting if 
+        # testing repos are live, for instance
+        local _group_count_local=$(pacman -Qgq $_group | sort -u | wc -l)
+        local _group_count_repo=$(pacman -Sgq $_group | sort -u | wc -l)
+        local _threshold=12
+        local _score=$(echo $((($_group_count_repo*10)/$_group_count_local)))
+        if [[ $_score -le $_threshold ]]
+        then
+            GROUPS_[DETECTED]+="$_group "
+            echo -n "$_group "
+            #echo "(scored $score; marked INSTALLED)"
+        else
+            #echo "(scored $score)"
+            :
+        fi
+    done
+    echo
+fi
+Unit_Report "FULLY INSTALLED GROUPS (DETECTED):\n${GROUPS_[DETECTED]}"
+}
+
+UNIT_InitializeRepositoryState ()
+{
+# diff snapshot and system state into globals
+# (herein it's pseudo functional)
+:
+}
+
+UNIT_InitializeStateDifferential ()
+{
+# diff snapshot and system state into globals
+# (herein it's pseudo functional)
+:
+}
+
+UNIT_UpdateSnapshot ()
+{
+$(Is_True $UPDATE_SNAPSHOT) || return
+# use differential to update snapshot state
+# prompting unless in force mode
+# (herein it's pseudo functional)
+
+}
+
+UNIT_UpdateSystem ()
+{
+$(Is_True $UPDATE_SYSTEM) || return
+# use differential to update system state
+# prompting unless in force mode
+# (herein it's pseudo functional)
+# regen / user regen
+
+}
+
+UNIT_ReportResults ()
+{
+# trap was previously ReportResults plus CleanUpEnvironment; if we're 
+# here and have a critical failure then we must of course reassign our 
+# trap to CleanUpEnvironment (which would have been called after 
+# ReportResults)
+trap 'UNIT_CleanUpEnvironment' INT TERM EXIT
+
+if [[ -n ${REPORT_SEQUENCE_[@]:-} ]]
+then
+    for _report_category in "${REPORT_SEQUENCE_[@]:-}"
+    do
+        UI_Passive_Alert "$(Upper_Case $_report_category):"
+        UI_Passive_Alert "${REPORT_[${_report_category}]}"
+    done
+fi
+
+#each sequence unit should be creating a report in a standard format
+#and adding to a global report sequence variable
+}
+
+UNIT_CleanUpEnvironment ()
+{
+trap - INT TERM EXIT
+#remove temp dir
+for cleanup_item in "${CLEANUP[@]}"; do eval "$cleanup_item"; done
+}
+
+#Safe_Execute ${UNIT_SEQUENCE}
+for unit in $UNIT_SEQUENCE
+do
+    eval UNIT_$unit
+done
+unset unit
+
+
+
+
+exit
+
+
+
+
+# ----------------------------------------------------------------------
+# GROUP STATE
+# ----------------------------------------------------------------------
+# group check
+#echo -en "$HR\nPackage groups installed: "
+#echo ${groups[live]} 
+#echo
+progress "Checking installed groups for new/removed packages"
+for groupname in ${groups[live]}
+do
+    all_clear=true
+    grouprepo="$(pacman -Sgq $groupname)"; grouplocal="$(pacman -Qgq $groupname)"
+    packages_official_grouped_missing[$groupname]=$(compare "$grouprepo" "$grouplocal")
+    packages_official_grouped_removed[$groupname]=$(compare "$grouplocal" "$grouprepo")
+    if [[ -n ${packages_official_grouped_missing[$groupname]} ]]
+    then
+        report groups $groupname groups has new packages that can be installed: ${packages_official_grouped_missing[$groupname]}
+        all_clear=false
+    fi
+    if [[ -n ${packages_official_grouped_removed[$groupname]} ]]
+    then
+        report groups $groupname groups has removed packages\; the following can be removed locally: ${packages_official_grouped_removed[$groupname]}
+        all_clear=false
+    fi
+done
+$(istrue $all_clear) && report groups "All group package lists are up to date"
+
+# ----------------------------------------------------------------------
+# PACKAGE STATE
+# ----------------------------------------------------------------------
+progress "Getting list of explicitly installed packages (official)"
+packages_official[live]="$(compare "$(compare "$(pacman -Qeq)" "$(pacman -Qmq)")" "$(pacman -Qgq ${groups[live]})")"
+progress "Getting list of explicitly installed packages (AUR)"
+packages_aur[live]="$(common "$(pacman -Qeq)" "$(pacman -Qmq)")"
+report packages "OFFICIAL PACKAGES (EXCL. DEPENDENCIES, NO GROUP PACKAGES):"
+report packages ${packages_official[live]:-NONE}
+report packages "\nAUR PACKAGES (EXCL. DEPENDENCIES):"
+report packages ${packages_aur[live]:-NONE}
+
+missing_official_from[system]="$(compare "${packages_official[file]}" "${packages_official[live]}")"
+missing_official_from[config]="$(compare "${packages_official[live]}" "${packages_official[file]}")"
+missing_aur_from[system]="$(compare "${packages_aur[file]}" "${packages_aur[live]}")"
+missing_aur_from[config]="$(compare "${packages_aur[live]}" "${packages_aur[file]}")"
+[[ -n ${missing_official_from[system]} ]] \
+    && report packages "\nMISSING: The $CMD config includes the following packages that are not installed on the system:" \
+    && report packages $(echo ${missing_official_from[system]})
+[[ -n ${missing_official_from[config]} ]] \
+    && report packages "\nMISSING: The system contains the following installed packages that are missing from your $CMD config:" \
+    && report packages $(echo ${missing_official_from[config]})
+[[ -n ${missing_aur_from[system]} ]] \
+    && report packages "\nMISSING: The $CMD config includes the following AUR packages that are not installed on the system:" \
+    && report packages $(echo ${missing_official_from[system]})
+[[ -n ${missing_aur_from[config]} ]] \
+    && report packages "\nMISSING: The system contains the following installed AUR packages that are missing from your $CMD config:" \
+    && report packages $(echo ${missing_official_from[config]})
+
+# ----------------------------------------------------------------------
+# OVERLAY FILES STATE
+# ----------------------------------------------------------------------
+progress "Checking overlay files"
+DEFAULT_ATTRIBS="644 root root"
+_IFS=$IFS; IFS=$'\n'
+for line in ${overlay_files[file]}
+do
+    _path=$(echo -n $line | awk '{print $1}')
+    _attribs=$(echo -n $line | awk '{print $2,$3,$4}')
+    [[ -e $_path ]] && _live_attribs=$(stat -c '%a %U %G' $_path)
+    [[ -z $_attribs && -e $_path ]] && _attribs=$_live_attribs
+    #TODO: may be better to not set default values in case of no current live file
+    #[[ -z $_attribs ]] && _attribs=$DEFAULT_ATTRIBS
+    overlay_files[reviewed]+="$_path $_attribs\n"
+    [[ -e $_path ]] && overlay_files[live]+="$_path $_live_attribs\n" || overlay_files[live]+="$_path $_attribs\n"
+    overlay_files[paths]+="$_path\n"
+done
+IFS=$_IFS
+overlay_files[file]="$(echo -e "${overlay_files[reviewed]}" | sed '/^$/d')"
+overlay_files[live]="$(echo -e "${overlay_files[live]}" | sed '/^$/d')"
+overlay_files[paths]="$(echo -e "${overlay_files[paths]}" | sed '/^$/d')"
+overlay_files[diff]="$(compare "${overlay_files[live]}" "${overlay_files[file]}")"
+report overlay "Overlay file list:"
+report overlay "${overlay_files[file]}"
+if [[ -n ${overlay_files[diff]} ]]
+then
+    report overlay "\nOverlay file items that differ from the live system"
+    report overlay "${overlay_files[diff]}"
+fi
+

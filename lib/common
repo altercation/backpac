@@ -1,0 +1,382 @@
+#!/bin/bash
+
+# Install_Package_From_AUR <package_name>
+# Syncs dependencies from official repositories with makepkg
+Install_Package_From_AUR ()
+{
+    package_name="${1}"
+    build_path="${TMPDIR}/build"
+    revert_path="${PWD}"
+    source_path="https://aur.archlinux.org/packages/${package_name}/${package_name}.tar.gz"
+
+    pacman -Qs ^${package_name}$ &>/dev/null && return 0 # already installed
+
+    _Prepare ()
+    {
+        rm -rf "${build_path}" || true
+        mkdir -p "${build_path}"
+    }
+
+    _Make_And_Install ()
+    {
+        cd "${build_path}"
+        wget "${source_path}"
+        tar -xzvf "${package_name}.tar.gz"
+        cd "${package_name}"
+        makepkg -si --noconfirm
+    }
+
+    _Cleanup ()
+    {
+        cd ${revert_path}
+        rm -rf ${build_path} || true
+        unset source_path
+        unset revert_path
+        unset build_path
+        unset package_name
+    }
+
+    Execute_With_Failsafe_Cleanup _Prepare _Make_And_Install _Cleanup
+}
+
+# Execute_With_Failsafe_Cleanup "risky" "commands" "mandatory cleanup"
+# when executing a risky command with a mandatory cleanup action, this sets up 
+# the trap, runs the risky commands and executes cleanup, finally breaking down 
+# the trap and restoring the previous trap state.
+Execute_With_Failsafe_Cleanup ()
+{
+    local _previous_traps=$(trap)
+    eval local _rollback_command=\"\${${#@}}\"
+    eval trap \'${_rollback_command} && return 1\' INT TERM EXIT
+
+    local _command=
+    for _command in $(seq ${#@})
+    do
+        eval "${!_command}"
+    done
+
+    #trap - INT TERM EXIT
+    eval "${_previous_traps}"
+}
+
+# Execute_With_Failsafe_Rollback "risky" "commands "conditional rollback"
+# when executing a risky command with a rollback action only required upon 
+# critical failure, this sets up the trap and runs the risky commands, finally 
+# breaking down the trap and restoring the previous trap state. The rollback 
+# command is only executed upon critical failure.
+Execute_With_Failsafe_Rollback ()
+{
+    local _previous_traps=$(trap)
+    eval local _rollback_command=\"\${${#@}}\"
+    eval trap \'${_rollback_command} && return 1\' INT TERM EXIT
+
+    local _command=
+    local _num_args_less_one=$((${#@}-1))
+    for _command in $(seq ${_num_args_less_one})
+    do
+        eval "${!_command}"
+    done
+
+    trap - INT TERM EXIT
+    eval "${_previous_traps}"
+}
+
+Debug () { echo ">>> DEBUG >>> $1 >>> DEBUG >>>"; }
+Is_True () { case $(Lower_Case ${1:-}) in true|yes|1|y|set) return 0 ;; *) return 1 ;; esac; }
+Upper_Case () { echo -n "$*" | tr '[:lower:]' '[:upper:]'; }
+Lower_Case () { echo -n "$*" | tr '[:upper:]' '[:lower:]'; }
+Query () { while true; do read -p "${1:-} (y/n) " response; case $response in [yY]*) return 0; ;; [nN]*) return 1; ;; esac; done; }
+
+compare () { echo "$(comm -23 <(echo "${1}" | sort -u ) <(echo "${2}" | sort -u ))"; }
+common () { echo "$(comm -12 <(echo "${1}" | sort -u ) <(echo "${2}" | sort -u ))"; }
+
+log () { echo "$*"; logger "$CMD: $*"; }
+progress () { echo "=> $(truc $*)..."; }
+
+readoption () { n="option_${1#option_}"; local opt; for opt in $(eval echo -n \${!$n[@]}); do eval $(truc $opt)=\"\${$n[$opt]}\"; done; }
+readfile_nocomments () { [[ -e $1 ]] && cat $1 | egrep "^\s*[^#]"; }
+list_file () { echo $(cat $1) | tr -s " " "\n"; }
+regen () { echo "TODO: add mkinitcpio, grub regen here"; }
+
+# Read a file's contents, stripping comment lines
+Read_File_Drop_Comments ()
+{
+    [[ -e $1 ]] && cat $1 | egrep "^\s*[^#]"
+}
+
+Unit_Report ()
+{
+    # find parent UNIT_ function
+    local _category
+    for _category in "${FUNCNAME[@]}"
+    do
+        [[ $(expr "${_category}" : "UNIT_") > 0 ]] && break
+    done
+
+    # add to list of categories if this is a new REPORT_ value
+    if [[ -z ${REPORT_[${_category#UNIT_}]:-} ]]
+    then
+        REPORT_SEQUENCE_[$((${#REPORT_SEQUENCE_[@]}+1))]=${_category#UNIT_}
+    fi
+
+    # add report string to report category string
+    REPORT_[${_category#UNIT_}]+="$*\n";
+}
+
+UI_Passive_Alert ()
+{
+    eval "local _alert=\"\\n${1}\""
+    echo -e "${_alert}"
+    #eval "echo -e \"\\n${1}\""
+}
+UI_Active_Alert ()
+{
+    eval eval "echo -e \"\\n${1}\""
+    Query "Proceed?"
+}
+UI_Passive_Warning ()
+{
+    echo -e "\nWARNING"
+    eval "echo -e \"${*}\""
+}
+UI_Active_Warning ()
+{
+    echo -e "\nWARNING"
+    eval "echo -e \"${*}\""
+    Query "Proceed?"
+}
+
+Options_Initialize ()
+{
+local _summary_var=${1:-}
+local _warning_var=${2:-}
+# used throughout this funcion; make sure it's local
+local _option_array
+
+# set minimum required option flags (h=help)
+local _option_flags="h"
+
+# read flags into a new array for reverse option lookup using getopts
+local _option_array
+for _option_array in ${!OPT_*}
+do
+    eval local _flag=\${${_option_array}[FLAG]}
+    local _option_flags+="$_flag"       # retain colon if present
+    FLAG_[${_flag%:}]="$_option_array"  # strip colon if present
+done
+
+# reset command line options here since we're inside a function
+set -- $CMDLINE_OPTIONS
+
+# use getopts to process command line options and set values here
+local _options_active=""
+local _option_flag
+while getopts "${_option_flags}" _option_flag
+do
+    case ${_option_flag} in
+        \?) exit 1 ;; # getopts has detected an incorrectly formatted option
+        h)  echo "HELP!!!!!" ;;
+        *)  local _option=${FLAG_[${_option_flag}]}
+            local _item;
+            eval ${_option}[ALERT]=\"\${${_option}[ALERT_SET]}\"
+            eval ${_option}[SET]="true"
+            if [[ -n ${OPTARG:-} ]]
+            then
+                eval ${_option}[STATE]=\"\${OPTARG}\"
+            else
+                eval ${_option}[STATE]=\"\${${_option}[STATE_SET]}\"
+            fi
+            _options_active+="${_option} "
+            ;;
+    esac
+done
+
+# set GLOBAL_OPTION from equivalent OPT_GLOBAL_OPTION_
+for _option_array in ${!OPT_*}
+do
+    local _global_option=${_option_array#OPT_}
+    _global_option=${_global_option%_}
+    eval ${_global_option}=\"\${$_option_array[STATE]}\"
+done
+
+# check for any conflicts
+for _option_array in ${!OPT_*}
+do
+    eval local _test_set=\"\${$_option_array[SET]:-}\"
+    if [[ -n ${_test_set} ]]
+    then
+        eval local _conflict_name=\"\${$_option_array[CONFLICTS]:-}\"
+        [[ -z ${_conflict_name} ]] && _conflict_value=false \
+        || eval local _conflict_value=\"\${$_conflict_name}\"
+        if Is_True $_conflict_value
+        then
+            eval local _warning=\"Cannot use -\${OPT_${_conflict_name}_[FLAG]} \
+            and -\${$_option_array[FLAG]} command line options simultaneously.\"
+            UI_Passive_Warning "$(echo ${_warning})"
+            exit 0
+        fi
+    fi
+done
+}
+
+Options_Summary ()
+{
+# prepare option summary dialog string
+local _option_array
+for _option_array in ${!OPT_*}
+do
+    local _p="()"
+    eval [[ -n \${$_option_array[SET]:-} ]] && _p="  "
+    eval echo \"${_p:0:1}-\${$_option_array[FLAG]%:}${_p:1:1}\\t\${$_option_array[ALERT]:-}\"
+done
+}
+
+Options_Warning ()
+{
+# identify any warnings and prepare a warning dialog string
+local _option_array
+for _option_array in ${!OPT_*}
+do
+    eval local _test_set=\"\${$_option_array[SET]:-}\"
+    if [[ -n ${_test_set} ]]
+    then
+        eval local _warn_condition=\"\${!$_option_array[WARN_CONDITION]:-false}\"
+        if Is_True $_warn_condition
+        then
+            eval echo \"\${$_option_array[WARNING]:-}\"
+        fi
+    fi
+done
+}
+
+Fail_Critically ()
+{
+    echo -e "\nCRITICAL FAILURE. Reported by ${FUNCNAME[1]}:\n$(echo ${1})"
+    exit 1
+}
+
+Fail_Noncritically ()
+{
+    echo -e "\nNONCRITICAL FAILURE. Reported by ${FUNCNAME[1]}:\n$(echo ${1})"; 
+}
+
+Is_Array ()
+{
+    [[ -n ${1:-} ]] && declare | egrep -q "^${1}=\(" || return 1
+}
+
+_Set_Op_Precheck ()
+{
+    if Is_Array ${1:-} && Is_Array ${2:-} && [[ -n ${3:-} ]]
+    then
+        return 0
+    else
+        Fail_Critically "${FUNCNAME[1]} requires the names of two existing 
+        array variables followed by the name of a new variable which will be 
+        used as a result array."
+    fi
+}
+
+Set_Op_Union ()
+{
+    local _set_a="${1}"
+    local _set_b="${2}"
+    # should be using clean data, but we shouldn't trust in that
+    _set_a="$(echo ${_set_a} | Data_To_Normalized_List)"
+    _set_b="$(echo ${_set_b} | Data_To_Normalized_List)"
+    echo $_set_a $_set_b | Data_To_Normalized_List
+}
+Set_Op_Intersection ()
+{
+    local _set_a="${1}"
+    local _set_b="${2}"
+    # should be using clean data, but we shouldn't trust in that
+    _set_a="$(echo ${_set_a} | Data_To_Normalized_List)"
+    _set_b="$(echo ${_set_b} | Data_To_Normalized_List)"
+    echo "$(comm -12 <(echo "${_set_a}") <(echo "${_set_b}"))"
+}
+Set_Op_Difference ()
+{
+    local _set_a="${1}"
+    local _set_b="${2}"
+    # should be using clean data, but we shouldn't trust in that
+    _set_a="$(echo ${_set_a} | Data_To_Normalized_List)"
+    _set_b="$(echo ${_set_b} | Data_To_Normalized_List)"
+    echo "$(comm -23 <(echo "${_set_a}") <(echo "${_set_b}"))"
+}
+
+# Given a potentially dirty input value, clean it up and output as 
+# a one-item-per-line list (assumes items are separated by spaces)
+Normalize_List ()
+{
+    local _input _line
+    if [[ -n ${1:-} ]]
+    then
+        _input="${1}"
+    else
+        while read _line
+        do
+            _input+="${_line} "
+        done
+    fi
+    echo ${_input} | tr -s " " "\n" | sort -u
+}
+
+# Data_To_Sorted_Array input_var_name output_var_name
+# Can take either: two input values (both variable *names*), input/ouput
+# or piped input and single output array variable name
+# --
+# If input data is given as variable name, variable can be array or list
+# and list can be newline or space separated items
+Data_To_Normalized_Array ()
+{
+    if [[ -n ${2:-} ]]
+    then
+        _array_name=${2:-}
+        Is_Array ${1:-} && eval _data_content+="\${$1[*]}" || _data_content="${!1}"
+        eval ${_array_name}=\(\)
+        _IFS="$IFS"; IFS="\n"
+        local _item
+        for _item in $(echo ${_data_content} | tr -s " " "\n" | sort -u)
+        do eval ${_array_name}+=\(\"\${_item} \"\); done
+        IFS="$_IFS"
+    else
+        while read _line
+        do _data_content+="${_line} "; done
+        [[ -z ${_data_content} ]] && Fail_Critically "No input received."
+        _IFS="$IFS"; IFS="\n"
+        local _item
+        for _item in $(echo ${_data_content} | tr -s " " "\n" | sort -u)
+        do echo "${_item}"; done
+        IFS="$_IFS"
+    fi
+}
+
+# Data_To_Sorted_List input_var_name output_var_name
+# Can take either: two input values (both variable *names*), input/ouput
+# or piped input and single output variable name
+# --
+# If input data is given as variable name, variable can be array or list
+# and list can be newline or space separated items
+Data_To_Normalized_List ()
+{
+    if [[ -n ${2:-} ]]
+    then
+        local _list_name=${2:-}
+        Is_Array ${1:-} && eval _data_content+="\${$1[*]}" || _data_content="${!1}"
+        _IFS="$IFS"; IFS="\n"
+        local _item
+        for _item in $(echo ${_data_content} | tr -s " " "\n" | sort -u)
+        do eval ${_list_name}+=\"\${_item} \"; done
+        IFS="$_IFS"
+    else
+        while read _line
+        do _data_content+="${_line} "; done
+        [[ -z ${_data_content} ]] && Fail_Critically "No input received."
+        _IFS="$IFS"; IFS="\n"
+        local _item
+        echo ${_data_content} | tr -s " " "\n" | sort -u
+        IFS="$_IFS"
+    fi
+}
+
