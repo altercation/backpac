@@ -1,4 +1,4 @@
-pacsnap
+backpac
 =======
 
 A package state snapshot and restore tool for Arch Linux

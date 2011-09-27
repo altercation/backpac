@@ -46,18 +46,6 @@ set -o errexit # -e : exit on any trivial error
 [[ -z $DEBUG ]] || set -o verbose # -v : talkative bash DEBUG
 
 # ----------------------------------------------------------------------
-# USER DEFAULTS
-# ----------------------------------------------------------------------
-# Don't change these here. Set in your shell's environment variables.
-
-# Snapshot directory. Override this in your environment with PACSNAP_DIRECTORY
-DEFAULT_SNAPSHOT_DIRPATH="${PACSNAP_DIRECTORY:-${XDG_CONFIG_HOME}/${SCRIPTNAME}/${HOSTNAME}}"
-
-# AUR helper. Override with in your environment with AUR_HELPER
-# must support basic pacman command line options (-S, -Q, etc.)
-AUR_HELPER=${AUR_HELPER:-packer}
-
-# ----------------------------------------------------------------------
 # SCRIPT DEFAULTS
 # ----------------------------------------------------------------------
 
@@ -102,6 +90,19 @@ OVERLAY_[DIRNAME]="${OVERLAY_[FILENAME]}.d"
 # ----------------------------------------------------------------------
 
 for filename in $LIBS_DIRPATH/* ; do source $filename; done; unset filename
+
+# ----------------------------------------------------------------------
+# USER DEFAULTS
+# ----------------------------------------------------------------------
+# Don't change these here. Set in your shell's environment variables.
+
+# Snapshot directory. Override this in your environment with ${SCRIPTNAME}_DIRECTORY
+eval SNAPSHOT_DIRNAME_ENVVAR="$(Upper_Case $SCRIPTNAME)_DIR"
+DEFAULT_SNAPSHOT_DIRPATH="${!SNAPSHOT_DIRNAME_ENVVAR:-${XDG_CONFIG_HOME}/${SCRIPTNAME}/${HOSTNAME}}"
+
+# AUR helper. Override with in your environment with AUR_HELPER
+# must support basic pacman command line options (-S, -Q, etc.)
+AUR_HELPER=${AUR_HELPER:-packer}
 
 # ----------------------------------------------------------------------
 # COMMAND LINE OPTIONS, RUNTIME OPTION REPORT VALUES & HELP
@@ -163,7 +164,7 @@ OPT_SNAPSHOT_DIRPATH_=(
 [ALERT_SET]='Custom snapshot path ON; Path is ${SNAPSHOT_DIRPATH}.'
 [USAGE]='Specify full path to a custom snapshot directory.'
 )
-OPT_SYSTEM_RESTORE_=(
+OPT_SYSTEM_UPDATE_=(
 [FLAG]='s'
 [STATE]='false'
 [STATE_SET]='true'
@@ -201,30 +202,49 @@ $SCRIPTNAME SNAPSHOT UPDATE being run in FORCE OVERWRITE mode:
 Use the backup option to save the current snapshot files (package lists and 
 overlay list and files) prior to the new snapshot creation.'
 )
+OPT_HELP_=(
+[FLAG]='h'
+[STATE]='false'
+[STATE_SET]='true'
+[ALERT]='Display option and usage summary.'
+[USAGE]='${OPT_HELP_[ALERT]}'
+)
+USAGE_SYSTEM_CONFIG="CURRENT DEFAULT PATH=${DEFAULT_SNAPSHOT_DIRPATH} Change this with -${OPT_SNAPSHOT_DIRPATH_[FLAG]} command line option or by setting an environment variable named ${SNAPSHOT_DIRNAME_ENVVAR} to your preferred custom path.\nCURRENT AUR HELPER=${AUR_HELPER} Change this by setting an environment variable named AUR_HELPER to your preferred application. Must support basic pacman options. Will be installed by ${SCRIPTNAME} if not present."
+USAGE_SUMMARY='
+NOTE: Running without options will execute ${SCRIPTNAME} in a safe, passive report mode.  No changes to either the snapshot lists or the live system will be made.
+
+${SCRIPTNAME} manages package and configuration files using a few simple lists.  
+
+    ${PACKAGES_[FILENAME]}
+    ${AUR_[FILENAME]}
+    ${OVERLAY_[FILENAME]}
+
+The \"${PACKAGES_[FILENAME]}\" and \"${AUR_[FILENAME]}\" files are just a long list of package names that you either have or wish to install expclicitly on your current system.
+
+The \"${OVERLAY_[FILENAME]}\" list can be initially created as a \"one-path-per-line\" list of files you wish to save a copy of in an \"${OVERLAY_[DIRNAME]}\" directory. These can then be used as a snapshot of, for example, system configuration state.
+
+${SCRIPTNAME} runs in three modes:
+
+    Passive report mode: Displays a summary of your list and system state
+    Snapshot update mode: Updates your lists of packages and overlay files
+    System conform mode: Conforms current system state to match snapshot
+
+Unless running with the \"force\" option, a prompt will be displayed prior to any data changing event, in each of the three modes.
+'
 
 # ----------------------------------------------------------------------
 # EXECUTION SEQUENCE
 # ----------------------------------------------------------------------
 
 UNIT_SEQUENCE="
-PrepareEnvironment
-InitializeOptions
-InitializeSnapshotState
-InitializeSystemState
-UpdateSnapshot
-UpdateSystem
-ReportResults
-CleanUpEnvironment
-"
-UNIT_SEQUENCE="
-PrepareEnvironment
-InitializeOptions
-InitializeSnapshotState
-InitializeSystemState
-UpdateSnapshot
-UpdateSystem
-ReportResults
-CleanUpEnvironment
+Prepare_Environment
+Initialize_Options
+Snapshot
+Groups
+Packages
+Overlay
+Report
+Clean_Up
 "
 
 # ----------------------------------------------------------------------
@@ -233,35 +253,72 @@ CleanUpEnvironment
 
 TRAP_Alert ()
 {
-    echo -e "\nEARLY TERMINATION: Running Cleanup...\n"
+    # echo -e "\nEARLY TERMINATION: Running Cleanup...\n"
+    :
 }
 
-UNIT_PrepareEnvironment ()
+UNIT_Prepare_Environment ()
 {
-trap 'TRAP_Alert; UNIT_ReportResults; UNIT_CleanUpEnvironment' INT TERM EXIT
+trap 'TRAP_Alert; UNIT_Report; UNIT_Clean_Up' INT TERM EXIT
 TMPDIR="$(mktemp -d --tmpdir $SCRIPTNAME.XXX)"; CLEANUP+=('rm -rf $TMPDIR')
 Install_Package_From_AUR "$AUR_HELPER"
-
-# TODO: check config directory
-
 }
 
-UNIT_InitializeOptions ()
+UNIT_Initialize_Options ()
 {
 Options_Initialize || Fail_Critically "Error initializing options."
 local _option_summary="$(Options_Summary)"
 local _option_warning="$(Options_Warning)"
 [[ -z ${_option_summary:-} ]] || UI_Passive_Alert "$SCRIPTNAME\n\n${_option_summary}"
 [[ -z ${_option_warning:-} ]] || UI_Active_Warning "${_option_warning}"
+
+# final path set based on options
+PACKAGES_[FILEPATH]="${SNAPSHOT_DIRPATH}/${PACKAGES_[FILENAME]}"
+AUR_[FILEPATH]="${SNAPSHOT_DIRPATH}/${AUR_[FILENAME]}"
+OVERLAY_[FILEPATH]="${SNAPSHOT_DIRPATH}/${OVERLAY_[FILENAME]}"
+OVERLAY_[DIRPATH]="${SNAPSHOT_DIRPATH}/${OVERLAY_[DIRNAME]}"
+
+# set execution mode
+if ! Is_True ${SYSTEM_UPDATE:-} && ! Is_True ${SNAPSHOT_UPDATE:-}
+then MODE=REPORT
+elif Is_True ${SNAPSHOT_UPDATE:-}
+then MODE=SNAPSHOT
+elif Is_True ${SYSTEM_UPDATE:-}
+then MODE=SYSTEM
+else
+    UI_Passive_Alert "FAILED TO DETECT KNOWN EXECUTION MODE"; exit 1
+fi
+EVENT_MODEALERT_=(
+
+[REPORT,ALERT]="Running in passive report mode; no changes to system state will 
+be made."
+[REPORT,CONTRAINDICATOR]='FORCE'
+
+[SNAPSHOT,ALERT]="Running in snapshot update mode; '${PACKAGES_[FILENAME]}', 
+'${AUR_[FILENAME]}' list files in ${SNAPSHOT_DIRPATH} will be updated from the 
+current system state and any system files listed in ${OVERLAY_[FILENAME]} will 
+be copied to ${OVERLAY_[DIRPATH]}"
+
+[SYSTEM,ALERT]="Running in system update mode; Installed system packages will 
+be installed/removed based on the current state of the snapshot-list files 
+'${PACKAGES_[FILENAME]}', '${AUR_[FILENAME]}' in the directory 
+${SNAPSHOT_DIRPATH} (if present).  System files will be replaced by any files 
+listed in '${OVERLAY_[FILENAME]}' using sources in ${OVERLAY_[DIRPATH]}"
+
+)
+if ! Is_True "${!EVENT_MODEALERT_[$MODE,CONTRAINDICATOR]:-}"
+then
+    UI_Active_Alert "\n$(echo ${EVENT_MODEALERT_[$MODE,ALERT]})\nProceed"
+fi
 }
 
-UNIT_InitializeSnapshotState ()
+UNIT_Snapshot ()
 {
 # locate/make snapshot directory if in update snapshot mode, otherwise warn 
 # user and exit
 if [[ ! -d "${SNAPSHOT_DIRPATH}" ]]
 then
-    if Is_True ${SYSTEM_RESTORE}
+    if Is_True ${SYSTEM_UPDATE}
     then
         local _alert=
         if [[ "${SNAPSHOT_DIRPATH}" == "${DEFAULT_SNAPSHOT_DIRPATH}" ]]
@@ -285,14 +342,14 @@ then
         exit 0
     else
         mkdir -p ${SNAPSHOT_DIRPATH}
-        Unit_Report "Using snapshot directory at ${SNAPSHOT_DIRPATH}"
     fi
 fi
-
-PACKAGES_[FILEPATH]="${SNAPSHOT_DIRPATH}/${PACKAGES_[FILENAME]}"
-AUR_[FILEPATH]="${SNAPSHOT_DIRPATH}/${AUR_[FILENAME]}"
-OVERLAY_[FILEPATH]="${SNAPSHOT_DIRPATH}/${OVERLAY_[FILENAME]}"
-OVERLAY_[DIRPATH]="${SNAPSHOT_DIRPATH}/${OVERLAY_[DIRNAME]}"
+local _message="Snapshot directory: ${SNAPSHOT_DIRPATH}"
+if [[ "${MODE}" != "REPORT" ]] && ! Is_True ${FORCE}
+then
+    UI_Passive_Alert "$_message"
+fi
+Unit_Report "$_message"
 
 OVERLAY_[FILE]=\
 "$(Read_File_Drop_Comments ${OVERLAY_[FILEPATH]})"
@@ -301,16 +358,6 @@ PACKAGES_[FILE]=\
 AUR_[FILE]=\
 "$(Read_File_Drop_Comments ${AUR_[FILEPATH]} | Normalize_To_List)"
 
-if Is_True $DEBUG
-then
-Unit_Report "\nLOADED PACKAGES FILE from ${PACKAGES_[FILEPATH]}:"
-Unit_Report "$(echo ${PACKAGES_[FILE]})"
-Unit_Report "\nLOADED AUR FILE from ${AUR_[FILEPATH]}:"
-Unit_Report "$(echo ${AUR_[FILE]})"
-Unit_Report "\nLOADED OVERLAY FILE from ${OVERLAY_[FILEPATH]}:"
-Unit_Report "${OVERLAY_[FILE]}"
-fi
-
 [[ -n ${OVERLAY_[FILE]} ]] \
 || Unit_Report "No overlay file list. To save a snapshot of specific system 
 configuration files, make a line by line list of file paths in the following 
@@ -318,7 +365,7 @@ file: ${OVERLAY_[FILEPATH]}"
 
 }
 
-UNIT_InitializeSystemState ()
+UNIT_Groups ()
 {
 
 # DETECT GROUPS
@@ -354,6 +401,7 @@ INSTALL):\n${GROUPS_[DETECTED]}"
 
 if Is_True ${GROUP_CURRENCY_CHECK}; then
 
+# scan and build list of missing/removed
 local _group
 for _group in ${GROUPS_[DETECTED]}
 do
@@ -361,37 +409,148 @@ do
         Set_Op_Difference \
         "${GROUP_PACKAGES_REPO_[$_group]}" \
         "${GROUP_PACKAGES_LOCAL_[$_group]}")"
-
     GROUP_PACKAGES_REMOVED_FROM_GROUP_[${_group}]="$(\
         Set_Op_Difference \
         "${GROUP_PACKAGES_LOCAL_[${_group}]}" \
         "${GROUP_PACKAGES_REPO_[${_group}]}")"
-
-    [[ -z ${GROUP_PACKAGES_MISSING_IN_GROUP_[$_group]:-} ]] \
-    || local _report_missing+="MISSING (from group \"${_group}\"):
-    ${GROUP_PACKAGES_MISSING_IN_GROUP_[$_group]}\n"
-
-    [[ -z ${GROUP_PACKAGES_REMOVED_FROM_GROUP_[$_group]:-} ]] \
-    || local _report_removed+="MISSING (from group \"${_group}\"):
-    ${GROUP_PACKAGES_REMOVED_FROM_GROUP_[$_group]}\n"
 done
 
-[[ -z ${_report_missing:-} ]] \
-|| Unit_Report "\nMISSING GROUP PACKAGES
-\nPackages currently included in group lists in repository but which are 
-missing from locally installed groups (for groups that have been fully 
-installed). Possibly indicates that groups have been updated in the official 
-repositories. \n${_report_missing%\n}"
+local _runagain_alert="Run again in system update mode (non 
+-${OPT_FORCE_[FLAG]} forced mode) to be presented a prompt for installation of 
+these, or install manually."
 
-[[ -z ${_report_removed:-} ]] \
-|| Unit_Report "\nREMOVED GROUP PACKAGES
-\nPackages that are currently installed via group package installation but 
-which have since been removed from group list in repository (for groups that 
-have been fully installed). Possibly indicates that groups have been updated in 
-the official repositories. \n${_report_removed%\n}"
+local _skip_alert="Run ${SCRIPTNAME} with the 
+-${OPT_GROUP_CURRENCY_CHECK_[FLAG]} command line option to skip this group 
+package currency check."
 
-fi
+Debug "GROUP_PACKAGES_MISSING_IN_GROUP_[*]=${GROUP_PACKAGES_MISSING_IN_GROUP_[*]}"
+Debug "!GROUP_PACKAGES_MISSING_IN_GROUP_[*]=${!GROUP_PACKAGES_MISSING_IN_GROUP_[*]}"
 
+if [[ -n "${GROUP_PACKAGES_MISSING_IN_GROUP_[*]}" ]]
+then
+    # there are some missing packages
+
+    local _alert_intro="MISSING GROUP PACKAGES
+    \nPackages currently included in group lists in repository but which are 
+    missing from locally installed groups (for groups that have been fully 
+    installed). Possibly indicates that groups have been updated in the 
+    official repositories."
+
+    if ! Is_True ${FORCE} && [[ "${MODE}" == "SYSTEM" ]]
+    then
+        # SYSTEM, NON FORCE MODE
+            UI_Passive_Alert "${_alert_intro}"
+            [[ -n ${_skip_alert} ]] && UI_Passive_Alert "${_skip_alert}\n"
+            _skip_alert=
+    else
+        # REPORT, SNAPSHOT, OR SYSTEM-FORCE (don't auto install group pkgs?)
+            Unit_Report "${_alert_intro}"
+            [[ -n ${_runagain_alert} ]] && Unit_Report "${_runagain_alert}"
+            [[ -n ${_skip_alert} ]] && Unit_Report "${_skip_alert}"
+            _skip_alert=
+            _runagain_alert=
+    fi
+
+    local _group
+    for _group in ${!GROUP_PACKAGES_MISSING_IN_GROUP_[*]}
+    do
+        if [[ -n "${GROUP_PACKAGES_MISSING_IN_GROUP_[$_group]}" ]]
+        then
+            if ! Is_True ${FORCE} && [[ "${MODE}" == "SYSTEM" ]]
+            then
+                # SYSTEM, NON FORCE MODE
+                UI_Passive_Alert "MISSING from group \"${_group}\":"
+                local _new_installed=
+                local _new_install_failed=
+                local _new_skipped=
+                local _package
+                for _package in ${GROUP_PACKAGES_MISSING_IN_GROUP_[$_group]}
+                do
+                    if UI_Active_Alert "${_package}: Install"
+                    then
+                        Install_Package "${_package}" \
+                        && _new_installed+="${_package} " \
+                        || _new_install_failed+="${_package} "
+                    else
+                        _new_skipped+="${_package} "
+                    fi
+                done
+                [[ -n "${_new_skipped}" ]] && Unit_Report "MISSING from group \"${_group}\", INSTALL SKIPPED: ${_new_skipped}"
+                [[ -n "${_new_installed}" ]] && Unit_Report "MISSING from group \"${_group}\", INSTALLED: ${_new_installed}"
+                [[ -n "${_new_install_failed}" ]] && Unit_Report "MISSING from group \"${_group}\", INSTALL FAILED: ${_new_install_failed}"
+            else
+                Unit_Report "MISSING from group \"${_group}\": 
+                ${GROUP_PACKAGES_MISSING_IN_GROUP_[$_group]}\n"
+            fi
+        fi
+    done
+fi # end of test for any missing group packages
+
+if [[ -n "${GROUP_PACKAGES_REMOVED_FROM_GROUP_[*]}" ]]
+then
+    # there are some removed packages
+
+    local _alert_intro="REMOVED GROUP PACKAGES
+    \nPackages that are currently installed via group package installation but 
+    which have since been removed from group list in repository (for groups that 
+    have been fully installed). Possibly indicates that groups have been updated in 
+    the official repositories."
+
+    if ! Is_True ${FORCE} && [[ "${MODE}" == "SYSTEM" ]]
+    then
+        # SYSTEM, NON FORCE MODE
+            UI_Passive_Alert "${_alert_intro}"
+            [[ -n ${_skip_alert} ]] && UI_Passive_Alert "${_skip_alert}\n"
+            _skip_alert=
+    else
+        # REPORT, SNAPSHOT, OR SYSTEM-FORCE (don't auto install group pkgs?)
+            Unit_Report "${_alert_intro}"
+            [[ -n ${_runagain_alert} ]] && Unit_Report "${_runagain_alert}"
+            [[ -n ${_skip_alert} ]] && Unit_Report "${_skip_alert}"
+            _skip_alert=
+            _runagain_alert=
+    fi
+
+    local _group
+    for _group in ${!GROUP_PACKAGES_REMOVED_FROM_GROUP_[*]}
+    do
+        if [[ -n "${GROUP_PACKAGES_REMOVED_FROM_GROUP_[$_group]}" ]]
+        then
+            if ! Is_True ${FORCE} && [[ "${MODE}" == "SYSTEM" ]]
+            then
+                # SYSTEM, NON FORCE MODE
+                UI_Passive_Alert "MISSING from group \"${_group}\":"
+                local _new_uninstalled=
+                local _new_uninstall_failed=
+                local _new_skipped=
+                local _package
+                for _package in ${GROUP_PACKAGES_REMOVED_FROM_GROUP_[$_group]}
+                do
+                    if UI_Active_Alert "${_package}: Install"
+                    then
+                        Remove_Package "${_package}" \
+                        && _new_uninstalled+="${_package} " \
+                        || _new_uninstall_failed+="${_package} "
+                    else
+                        _new_skipped+="${_package} "
+                    fi
+                done
+                [[ -n "${_new_skipped}" ]] && Unit_Report "REMOVED from repo group list \"${_group}\", LOCAL UNINSTALL SKIPPED: ${_new_skipped}"
+                [[ -n "${_new_uninstalled}" ]] && Unit_Report "REMOVED from repo group list \"${_group}\", LOCALLY UNINSTALLED: ${_new_uninstalled}"
+                [[ -n "${_new_uninstall_failed}" ]] && Unit_Report "REMOVED from repo group list \"${_group}\", LOCAL UNINSTALL FAILED: ${_new_uninstall_failed}"
+            else
+                Unit_Report "REMOVED from group \"${_group}\": 
+                ${GROUP_PACKAGES_REMOVED_FROM_GROUP_[$_group]}\n"
+            fi
+        fi
+    done
+fi # end of test for any removed group packages
+
+fi # end of group currency check test
+}
+
+UNIT_Packages ()
+{
 # PACKAGE STATE
 # ----------------------------------------------------------------------
 
@@ -431,7 +590,10 @@ Unit_Report ${AUR_[LIVE]:-NONE}
 [[ -z ${AUR_MISSING_IN_[FILE]:-} ]] \
 || Unit_Report "\nAUR PACKAGES INSTALLED ON LIVE SYSTEM BUT NOT IN SNAPSHOT:
 \n$(echo ${AUR_MISSING_IN_[FILE]})"
+}
 
+UNIT_Overlay ()
+{
 # OVERLAY FILE CHECK
 # ----------------------------------------------------------------------
 
@@ -554,30 +716,21 @@ then
         && local _overlay_diff=false \
         || local _overlay_diff=true
 
-        local _state
+        local _state="UNKNOWN"
         if ! Is_True _overlay_diff && [[ "${_attribs_file}" == "${_attribs_live}" ]]
-        then
-            _state="GOOD"
+        then _state="GOOD"
         elif Is_True _overlay_diff && [[ "${_attribs_file}" != "${_attribs_live}" ]]
-        then
-            _state="ATTR_DIFF"
+        then _state="ATTR_DIFF"
         elif [[ "${_attribs_file}" != "${_attribs_live}" ]]
-        then
-            _state="ATTR"
+        then _state="ATTR"
         elif Is_True _overlay_diff
-        then
-            _state="DIFF"
+        then _state="DIFF"
         elif [[ ! -e "${_system_file_path}" && ! -e ${$_overlaydir_file_path} ]]
-        then
-            _state="NO_ALL"
+        then _state="NO_ALL"
         elif [[ -e "${_system_file_path}" && ! -e ${$_overlaydir_file_path} ]]
-        then
-            _state="NO_OVR"
+        then _state="NO_OVR"
         elif [[ ! -e "${_system_file_path}" && -e ${$_overlaydir_file_path} ]]
-        then
-            _state="NO_SYS"
-        else
-            _state="UNKNOWN"
+        then _state="NO_SYS"
         fi
 
         eval local _id=\"\${OVERLAY_ACTION_${_state}_[ID]:-}\"
@@ -594,6 +747,18 @@ then
         # Ack ack ack... this is all wrong. In the case of attribs for 
         # snapshot, I *just* need to change the file, not install (though for 
         # both attribs and content I need to do both)
+        #
+        # There is wayyyy too much duplication here. Should probably just
+        # be setting a couple values through the test and then executing on 
+        # them. this would allow the file to be created again line by line (or 
+        # rather a list that can then be sorted and written)
+        #
+        # also the system and snapshot update could almost be abstracted to 
+        # a single test if we set a variable up front and eval later
+        #
+        # Also, the decision/action arrays above could be used during the 
+        # package check sequence as well. revisit these and see if they can be 
+        # formatted better and generally improved.
 
         local _alert= 
         local _state_line="${_id}: ${_system_file_path} ${_report:+>>> }${_report}"
@@ -668,8 +833,7 @@ Debug
         fi
     done
 else
-    UI_Passive_Alert "Skipping overlay files check; no overlay file list in 
-    ${OVERLAY_[FILEPATH]}."
+    UI_Passive_Alert "Skipping overlay files check; no overlay file list in ${OVERLAY_[FILEPATH]}."
 fi
 
 
@@ -759,37 +923,23 @@ fi
 #
 }
 
-UNIT_UpdateSnapshot ()
-{
-$(Is_True $SNAPSHOT_UPDATE) || return 0
-# use differential to update snapshot state
-# prompting unless in force mode
-# (herein it's pseudo functional)
-}
-
-UNIT_UpdateSystem ()
-{
-$(Is_True $SYSTEM_RESTORE) || return 0
-# use differential to update system state
-# prompting unless in force mode
-# (herein it's pseudo functional)
-# regen / user regen
-
-}
-
-UNIT_ReportResults ()
+UNIT_Report ()
 {
 # trap was previously ReportResults plus CleanUpEnvironment; if we're 
 # here and have a critical failure then we must of course reassign our 
 # trap to CleanUpEnvironment (which would have been called after 
 # ReportResults)
-trap 'UNIT_CleanUpEnvironment' INT TERM EXIT
+trap 'UNIT_Clean_Up' INT TERM EXIT
 if [[ -n ${REPORT_SEQUENCE_[@]:-} ]]
 then
     for _report_category in "${REPORT_SEQUENCE_[@]:-}"
     do
-        UI_Passive_Alert "$(Upper_Case $_report_category):"
-        UI_Passive_Alert "${REPORT_[${_report_category}]}"
+        if [[ -n ${REPORT_[${_report_category}]} ]]
+        then
+            UI_Passive_Alert "$(Upper_Case $_report_category | tr "_" " "):"
+            UI_Passive_Alert "--------------------------------------------------------------------------------"
+            UI_Passive_Alert "${REPORT_[${_report_category}]}"
+        fi
     done
 fi
 
@@ -797,7 +947,7 @@ fi
 #and adding to a global report sequence variable
 }
 
-UNIT_CleanUpEnvironment ()
+UNIT_Clean_Up ()
 {
 trap - INT TERM EXIT
 #remove temp dir

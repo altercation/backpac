@@ -1,5 +1,10 @@
 #!/bin/bash
 
+Install_Package ()
+{
+    sudo pacman -Sq --noconfirm "${1}"
+}
+
 # Install_Package_From_AUR <package_name>
 # Syncs dependencies from official repositories with makepkg
 Install_Package_From_AUR ()
@@ -102,6 +107,7 @@ regen () { echo "TODO: add mkinitcpio, grub regen here"; }
 Read_File_Drop_Comments ()
 {
     [[ -e $1 ]] && cat $1 | egrep "^\s*[^#]"
+    return 0
 }
 
 Unit_Report ()
@@ -126,8 +132,8 @@ Unit_Report ()
 
 UI_Passive_Alert ()
 {
-    eval "local _alert=\"${1}\""
-    echo -e "${_alert}"
+    eval "local _alert=\"${1:-}\""
+    [[ -n ${_alert:-} ]] && echo -e "${_alert}"
 }
 
 UI_Active_Alert ()
@@ -178,7 +184,7 @@ local _option_flag
 while getopts "${_option_flags}" _option_flag
 do case ${_option_flag} in
     \?) exit 1 ;; # getopts has detected an incorrectly formatted option
-    h)  echo "HELP!!!!!" ;;
+    h)  Usage; exit 0 ;;
     *)  local _option=${FLAG_[${_option_flag}]}
         local _item;
         eval ${_option}[ALERT]=\"\${${_option}[ALERT_SET]}\"
@@ -209,7 +215,7 @@ do
         then
             eval local _warning=\"Cannot use -\${OPT_${_conflict_name}_[FLAG]} \
             and -\${$_option_array[FLAG]} command line options simultaneously.\"
-            UI_Passive_Warning "$(echo ${_warning})"
+            UI_Passive_Warning "$(echo ${_warning})\n"
             exit 0
         fi
     fi
@@ -244,6 +250,21 @@ do
         fi
     fi
 done
+}
+
+Usage ()
+{
+    UI_Passive_Alert "\n${SCRIPTNAME:-0} options summary:\n"
+    local _option_array
+    for _option_array in ${!OPT_*}
+    do
+        local _p="  "
+        eval echo -e \"${_p:0:1}-\${$_option_array[FLAG]%:}${_p:1:1}\\t\${$_option_array[USAGE]:-}\"
+    done
+    UI_Passive_Alert "\n${SCRIPTNAME:-0} current configuration:"
+    UI_Passive_Alert "${USAGE_SYSTEM_CONFIG:-}"
+    UI_Passive_Alert "\n${SCRIPTNAME:-0} usage:"
+    UI_Passive_Alert "${USAGE_SUMMARY}"
 }
 
 Fail_Critically ()
@@ -352,8 +373,9 @@ Normalize_To_Array ()
 Normalize_To_List ()
 {
     # normalize input (command line or piped) to single line space delimited 
-    [[ -n ${1:-} ]] && _data_content="$(echo ${1})" \
-        || while read _line; do _data_content+="${_line} "; done
-    echo ${_data_content} | tr -s " " "\n" | sort -u
+    [[ -n ${1:-} ]] && _input="$(echo ${1})" \
+        || while read _line; do _input+="${_line} "; done
+    [[ -n ${_input:-} ]] && ( echo ${_input} | tr -s " " "\n" | sort -u ) \
+        || return 0
 }
 
