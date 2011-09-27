@@ -451,6 +451,78 @@ Unit_Report ${AUR_[LIVE]:-NONE}
 # - record the names and report the diff value of any files that differ from
 #   the live system
 
+# Overlay tests per file
+# GOOD: Up to date
+# ATTR: System/Overlay attributes different
+# DIFF: Content differs.
+# NO-SYS: System File Missing
+# NO-OVR: Overlay File Missing
+# NO-ALL: Overlay and System File Missing
+OVERLAY_ACTION_GOOD_=(
+[ID]="GOOD"
+[REPORT]="Up to date."
+[SYSTEM_UPDATE_QUERY]=""
+[SYSTEM_UPDATE_COMMAND]=""
+[SNAPSHOT_UPDATE_QUERY]=""
+[SNAPSHOT_UPDATE_COMMAND]=""
+)
+OVERLAY_ACTION_ATTR_DIFF_=(
+[ID]="ATTR-DIFF"
+[REPORT]="System/Overlay attributes and file content different."
+[SYSTEM_UPDATE_QUERY]="Copy file (content and attributes) from snapshot to live system"
+[SYSTEM_UPDATE_COMMAND]="Install to system"
+[SNAPSHOT_UPDATE_QUERY]="Copy file (content and attributes) from live system to snapshot"
+[SNAPSHOT_UPDATE_COMMAND]="Install to snapshot"
+)
+OVERLAY_ACTION_ATTR_=(
+[ID]="ATTR"
+[REPORT]="System/Overlay attributes different."
+[SYSTEM_UPDATE_QUERY]="Copy file attributes from snapshot to live system"
+[SYSTEM_UPDATE_COMMAND]="Install to system"
+[SNAPSHOT_UPDATE_QUERY]="Copy file attributes from live system to snapshot"
+[SNAPSHOT_UPDATE_COMMAND]="Install to snapshot"
+)
+OVERLAY_ACTION_DIFF_=(
+[ID]="DIFF"
+[REPORT]="System/Overlay content different."
+[SYSTEM_UPDATE_QUERY]="Copy file from snapshot to live system"
+[SYSTEM_UPDATE_COMMAND]="Install to system"
+[SNAPSHOT_UPDATE_QUERY]="Copy file from live system to snapshot"
+[SNAPSHOT_UPDATE_COMMAND]="Install to snapshot"
+)
+OVERLAY_ACTION_NO_ALL_=(
+[ID]="NO-ALL"
+[REPORT]="System and overlay instances of overlay file path are both missing."
+[SYSTEM_UPDATE_QUERY]=""
+[SYSTEM_UPDATE_COMMAND]=""
+[SNAPSHOT_UPDATE_QUERY]=""
+[SNAPSHOT_UPDATE_COMMAND]=""
+)
+OVERLAY_ACTION_NO_OVR_=(
+[ID]="NO-OVR"
+[REPORT]="Overlay file missing, system file present."
+[SYSTEM_UPDATE_QUERY]=""
+[SYSTEM_UPDATE_COMMAND]=""
+[SNAPSHOT_UPDATE_QUERY]="Copy file from live system to snapshot"
+[SNAPSHOT_UPDATE_COMMAND]="Install to snapshot"
+)
+OVERLAY_ACTION_NO_SYS_=(
+[ID]="NO-SYS"
+[REPORT]="System file missing, overlay file present."
+[SYSTEM_UPDATE_QUERY]="Copy file from snapshot to live system"
+[SYSTEM_UPDATE_COMMAND]="Install to system"
+[SNAPSHOT_UPDATE_QUERY]=""
+[SNAPSHOT_UPDATE_COMMAND]=""
+)
+OVERLAY_ACTION_UNKNOWN_=(
+[ID]="UNKNOWN"
+[REPORT]=""
+[SYSTEM_UPDATE_QUERY]=""
+[SYSTEM_UPDATE_COMMAND]=""
+[SNAPSHOT_UPDATE_QUERY]=""
+[SNAPSHOT_UPDATE_COMMAND]=""
+)
+
 if [[ -n "${OVERLAY_[FILE]}" ]]
 then
     UI_Passive_Alert "Checking overlay files list in ${OVERLAY_[FILEPATH]}"
@@ -459,6 +531,8 @@ then
     local _line
     for _line in ${OVERLAY_[FILE]}
     do
+
+        # Read overlay and system file state
         local _system_file_path=$(echo -n $_line | awk '{print $1}')
         local _overlaydir_file_path="${OVERLAY_[DIRPATH]}${_system_file_path}"
         local _attribs_file=$(echo -n $_line | awk '{print $2,$3,$4}')
@@ -472,6 +546,74 @@ then
         diff -q "${_overlaydir_file_path}" "${_system_file_path}" &>/dev/null \
         && local _overlay_diff=false \
         || local _overlay_diff=true
+
+
+        local _state
+        if ! Is_True _overlay_diff && [[ "${_attribs_file}" == "${_attribs_live}" ]]
+        then
+            _state="GOOD"
+        elif Is_True _overlay_diff && [[ "${_attribs_file}" != "${_attribs_live}" ]]
+        then
+            _state="ATTR_DIFF"
+        elif [[ "${_attribs_file}" != "${_attribs_live}" ]]
+        then
+            _state="ATTR"
+        elif Is_True _overlay_diff
+        then
+            _state="DIFF"
+        elif [[ ! -e "${_system_file_path}" && ! -e ${$_overlaydir_file_path} ]]
+        then
+            _state="NO_ALL"
+        elif [[ -e "${_system_file_path}" && ! -e ${$_overlaydir_file_path} ]]
+        then
+            _state="NO_OVR"
+        elif [[ ! -e "${_system_file_path}" && -e ${$_overlaydir_file_path} ]]
+        then
+            _state="NO_SYS"
+        else
+            _state="UNKNOWN"
+        fi
+
+        eval local _id="${OVERLAY_ACTION_${_state}_[ID]:-}"
+        eval local _report="${OVERLAY_ACTION_${_state}_[REPORT]:-}"
+        eval local _system_update_query="${OVERLAY_ACTION_${_state}_[SYSTEM_UPDATE_QUERY]:-}"
+        eval local _system_update_command="${OVERLAY_ACTION_${_state}_[SYSTEM_UPDATE_COMMAND]:-}"
+        eval local _snapshot_update_query="${OVERLAY_ACTION_${_state}_[SNAPSHOT_UPDATE_QUERY]:-}"
+        eval local _snapshot_update_command="${OVERLAY_ACTION_${_state}_[SNAPSHOT_UPDATE_COMMAND]:-}"
+
+        if ! Is_True $SYSTEM_UPDATE && ! Is_True $SNAPSHOT_UPDATE
+        then # REPORT MODE
+            UI_Passive_Alert "${_id}: ${_system_file_path} ${_report:+>>> }${_report}"
+        elif Is_True $SNAPSHOT_UPDATE && [[ -n ${_snapshot_update_command} ]]
+        then # SNAPSHOT UPDATE MODE
+            UI_Passive_Alert "${_id}: ${_system_file_path} ${_report:+>>> }${_report}"
+            UI_Passive_Alert "${_snapshot_update_query}"
+            if Is_True ${SNAPSHOT_UPDATE}
+            then
+                eval "${_snapshot_update_command}" \
+                    && UI_Passive_Alert "${_snapshot_update_query}: DONE"
+                    || UI_Passive_Alert "${_snapshot_update_query}: FAILED"
+            else
+                UI_Active_Alert "${_snapshot_update_query}" \
+                    && eval "${_snapshot_update_command}" \
+                    && UI_Passive_Alert "${_snapshot_update_query}: DONE"
+                    || UI_Passive_Alert "${_snapshot_update_query}: FAILED"
+            fi
+        elif Is_True $SYSTEM_UPDATE && [[ -n ${_system_update_command} ]]
+        then # SYSTEM UPDATE MODE
+            UI_Passive_Alert "${_id}: ${_system_file_path} ${_report:+>>> }${_report}"
+            if Is_True ${SYSTEM_UPDATE}
+            then
+                eval "${_system_update_command}" \
+                    && UI_Passive_Alert "${_system_update_query}: DONE"
+                    || UI_Passive_Alert "${_system_update_query}: FAILED"
+            else
+                UI_Active_Alert "${_system_update_query}" \
+                    && eval "${_system_update_command}" \
+                    && UI_Passive_Alert "${_system_update_query}: DONE"
+                    || UI_Passive_Alert "${_system_update_query}: FAILED"
+            fi
+        fi
     done
 else
     UI_Passive_Alert "Skipping overlay files check; no overlay file list in 
@@ -480,6 +622,9 @@ fi
 
 
 
+In system update mode
+
+In snapshot update mode
 
 #
 #    local _line
