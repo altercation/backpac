@@ -126,14 +126,15 @@ Unit_Report ()
 
 UI_Passive_Alert ()
 {
-    eval "local _alert=\"\\n${1}\""
+    eval "local _alert=\"${1}\""
     echo -e "${_alert}"
 }
 
 UI_Active_Alert ()
 {
-    eval eval "echo -e \"\\n${1}\""
-    Query "Proceed?"
+    eval "local _alert=\"${1}\""
+    echo -en "${_alert}"
+    Query "?"
 }
 
 UI_Incremental_Alert ()

@@ -64,8 +64,8 @@ AUR_HELPER=${AUR_HELPER:-packer}
 LIBS_DIRPATH="/usr/share/${SCRIPTNAME}/lib"
 LIBS_DIRPATH="$(dirname $0)/lib" # TODO: remove this
 CMDLINE_OPTIONS="${@}" # global so we can use in functions easily
-INSTALL_BACKUP_SUFFIX=".${SCRIPTNAME}" # cf man install
-INSTALL_BACKUP_MODE=simple # cf man install
+BACKUP_SUFFIX=".${SCRIPTNAME}" # cf man install
+DEFAULT_BACKUP_MODE=simple # cf man install
 
 # ----------------------------------------------------------------------
 # DYNAMIC ASSOCIATIVE ARRAYS
@@ -107,10 +107,10 @@ for filename in $LIBS_DIRPATH/* ; do source $filename; done; unset filename
 # COMMAND LINE OPTIONS, RUNTIME OPTION REPORT VALUES & HELP
 # ----------------------------------------------------------------------
 
-OPT_BACKUP_=(
+OPT_BACKUP_MODE_=(
 [FLAG]='b'
-[STATE]='true'
-[STATE_SET]='false'
+[STATE]='none'
+[STATE_SET]='${DEFAULT_BACKUP_MODE}'
 [ALERT]='Backups OFF; Files will be overwritten.'
 [ALERT_SET]='Backups ON; Files will be saved in place with backup suffix.'
 [USAGE]='Backup files when copying new file to existing path.'
@@ -470,25 +470,25 @@ OVERLAY_ACTION_ATTR_DIFF_=(
 [ID]="ATTR-DIFF"
 [REPORT]="System/Overlay attributes and file content different."
 [SYSTEM_UPDATE_QUERY]="Copy file (content and attributes) from snapshot to live system"
-[SYSTEM_UPDATE_COMMAND]="Install to system"
+[SYSTEM_UPDATE_COMMAND]='${_system_update_command}'
 [SNAPSHOT_UPDATE_QUERY]="Copy file (content and attributes) from live system to snapshot"
-[SNAPSHOT_UPDATE_COMMAND]="Install to snapshot"
+[SNAPSHOT_UPDATE_COMMAND]='${_snapshot_update_command}'
 )
 OVERLAY_ACTION_ATTR_=(
 [ID]="ATTR"
 [REPORT]="System/Overlay attributes different."
 [SYSTEM_UPDATE_QUERY]="Copy file attributes from snapshot to live system"
-[SYSTEM_UPDATE_COMMAND]="Install to system"
+[SYSTEM_UPDATE_COMMAND]='${_system_update_command}'
 [SNAPSHOT_UPDATE_QUERY]="Copy file attributes from live system to snapshot"
-[SNAPSHOT_UPDATE_COMMAND]="Install to snapshot"
+[SNAPSHOT_UPDATE_COMMAND]='${_snapshot_update_command}'
 )
 OVERLAY_ACTION_DIFF_=(
 [ID]="DIFF"
 [REPORT]="System/Overlay content different."
 [SYSTEM_UPDATE_QUERY]="Copy file from snapshot to live system"
-[SYSTEM_UPDATE_COMMAND]="Install to system"
+[SYSTEM_UPDATE_COMMAND]='${_system_update_command}'
 [SNAPSHOT_UPDATE_QUERY]="Copy file from live system to snapshot"
-[SNAPSHOT_UPDATE_COMMAND]="Install to snapshot"
+[SNAPSHOT_UPDATE_COMMAND]='${_snapshot_update_command}'
 )
 OVERLAY_ACTION_NO_ALL_=(
 [ID]="NO-ALL"
@@ -504,13 +504,13 @@ OVERLAY_ACTION_NO_OVR_=(
 [SYSTEM_UPDATE_QUERY]=""
 [SYSTEM_UPDATE_COMMAND]=""
 [SNAPSHOT_UPDATE_QUERY]="Copy file from live system to snapshot"
-[SNAPSHOT_UPDATE_COMMAND]="Install to snapshot"
+[SNAPSHOT_UPDATE_COMMAND]='${_snapshot_update_command}'
 )
 OVERLAY_ACTION_NO_SYS_=(
 [ID]="NO-SYS"
 [REPORT]="System file missing, overlay file present."
 [SYSTEM_UPDATE_QUERY]="Copy file from snapshot to live system"
-[SYSTEM_UPDATE_COMMAND]="Install to system"
+[SYSTEM_UPDATE_COMMAND]='${_system_update_command}'
 [SNAPSHOT_UPDATE_QUERY]=""
 [SNAPSHOT_UPDATE_COMMAND]=""
 )
@@ -525,7 +525,8 @@ OVERLAY_ACTION_UNKNOWN_=(
 
 if [[ -n "${OVERLAY_[FILE]}" ]]
 then
-    UI_Passive_Alert "Checking overlay files list in ${OVERLAY_[FILEPATH]}"
+    UI_Passive_Alert "\nChecking overlay files list in ${OVERLAY_[FILEPATH]}"
+    Unit_Report "\nOVERLAY FILES (${OVERLAY_[FILEPATH]})"
     DEFAULT_ATTRIBS="644 root root"
     _IFS=$IFS; IFS=$'\n'
     local _line
@@ -536,7 +537,13 @@ then
         local _system_file_path=$(echo -n $_line | awk '{print $1}')
         local _overlaydir_file_path="${OVERLAY_[DIRPATH]}${_system_file_path}"
         local _attribs_file=$(echo -n $_line | awk '{print $2,$3,$4}')
+        local _mode_file=$(echo -n $_line | awk '{print $2}')
+        local _owner_file=$(echo -n $_line | awk '{print $3}')
+        local _group_file=$(echo -n $_line | awk '{print $4}')
         local _attribs_live=$(stat -c '%a %U %G' ${_system_file_path} 2>/dev/null)
+        local _mode_live=$(stat -c '%a' ${_system_file_path} 2>/dev/null)
+        local _owner_live=$(stat -c '%U' ${_system_file_path} 2>/dev/null)
+        local _group_live=$(stat -c '%G' ${_system_file_path} 2>/dev/null)
         [[ ! -e "${_system_file_path}" ]] \
         && local _system_file_present=false \
         || local _system_file_present=true
@@ -546,7 +553,6 @@ then
         diff -q "${_overlaydir_file_path}" "${_system_file_path}" &>/dev/null \
         && local _overlay_diff=false \
         || local _overlay_diff=true
-
 
         local _state
         if ! Is_True _overlay_diff && [[ "${_attribs_file}" == "${_attribs_live}" ]]
@@ -574,45 +580,91 @@ then
             _state="UNKNOWN"
         fi
 
-        eval local _id="${OVERLAY_ACTION_${_state}_[ID]:-}"
-        eval local _report="${OVERLAY_ACTION_${_state}_[REPORT]:-}"
-        eval local _system_update_query="${OVERLAY_ACTION_${_state}_[SYSTEM_UPDATE_QUERY]:-}"
-        eval local _system_update_command="${OVERLAY_ACTION_${_state}_[SYSTEM_UPDATE_COMMAND]:-}"
-        eval local _snapshot_update_query="${OVERLAY_ACTION_${_state}_[SNAPSHOT_UPDATE_QUERY]:-}"
-        eval local _snapshot_update_command="${OVERLAY_ACTION_${_state}_[SNAPSHOT_UPDATE_COMMAND]:-}"
+        eval local _id=\"\${OVERLAY_ACTION_${_state}_[ID]:-}\"
+        eval local _report=\"\${OVERLAY_ACTION_${_state}_[REPORT]:-}\"
+        eval local _system_update_query=\"\${OVERLAY_ACTION_${_state}_[SYSTEM_UPDATE_QUERY]:-}\"
+        eval local _system_update_command=\"\${OVERLAY_ACTION_${_state}_[SYSTEM_UPDATE_COMMAND]:-}\"
+        eval local _snapshot_update_query=\"\${OVERLAY_ACTION_${_state}_[SNAPSHOT_UPDATE_QUERY]:-}\"
+        eval local _snapshot_update_command=\"\${OVERLAY_ACTION_${_state}_[SNAPSHOT_UPDATE_COMMAND]:-}\"
 
-        if ! Is_True $SYSTEM_UPDATE && ! Is_True $SNAPSHOT_UPDATE
+        _system_update_command="sudo install -CD --backup=${BACKUP_MODE} -S${BACKUP_SUFFIX} -g${_group_file} -o${_owner_file} -m${_mode_file} ${_overlaydir_file_path} $_system_file_path"
+        _snapshot_update_command="install -CD --backup=${BACKUP_MODE} -S${BACKUP_SUFFIX} $_system_file_path ${_overlaydir_file_path}"
+
+        # TODO: Update the actual list along with the install!!!
+        # Ack ack ack... this is all wrong. In the case of attribs for 
+        # snapshot, I *just* need to change the file, not install (though for 
+        # both attribs and content I need to do both)
+
+        local _alert= 
+        local _state_line="${_id}: ${_system_file_path} ${_report:+>>> }${_report}"
+        local _state_newline="\n${_state_line}"
+        if ! Is_True ${SYSTEM_UPDATE:-} && ! Is_True ${SNAPSHOT_UPDATE:-}
         then # REPORT MODE
-            UI_Passive_Alert "${_id}: ${_system_file_path} ${_report:+>>> }${_report}"
-        elif Is_True $SNAPSHOT_UPDATE && [[ -n ${_snapshot_update_command} ]]
+            Unit_Report "${_state_line}"
+        elif Is_True ${SNAPSHOT_UPDATE:-} && [[ -n ${_snapshot_update_command:-} ]]
         then # SNAPSHOT UPDATE MODE
-            UI_Passive_Alert "${_id}: ${_system_file_path} ${_report:+>>> }${_report}"
-            UI_Passive_Alert "${_snapshot_update_query}"
-            if Is_True ${SNAPSHOT_UPDATE}
+Debug
+            UI_Passive_Alert "${_state_newline}"
+            if Is_True ${FORCE:-}
             then
-                eval "${_snapshot_update_command}" \
-                    && UI_Passive_Alert "${_snapshot_update_query}: DONE"
-                    || UI_Passive_Alert "${_snapshot_update_query}: FAILED"
+Debug
+                eval eval "${_snapshot_update_command}" \
+                    && Unit_Report "${_snapshot_update_query}: DONE" \
+                    || Unit_Report "${_snapshot_update_query}: FAILED"
             else
-                UI_Active_Alert "${_snapshot_update_query}" \
-                    && eval "${_snapshot_update_command}" \
-                    && UI_Passive_Alert "${_snapshot_update_query}: DONE"
-                    || UI_Passive_Alert "${_snapshot_update_query}: FAILED"
+                if [[ -z "${_snapshot_update_query}" ]]
+                then
+                    UI_Passive_Alert "${_state_line}"
+                    Unit_Report "${_state_line}"
+                elif UI_Active_Alert "${_snapshot_update_query}"
+                then
+Debug
+                    eval eval "${_snapshot_update_command}" \
+                    && _alert="${_snapshot_update_query}: DONE" \
+                    || _alert="${_snapshot_update_query}: FAILED"
+                    UI_Passive_Alert "${_alert}"
+                    Unit_Report "${_state_line} -> ${_alert}"
+                else
+                    #_alert="${_snapshot_update_query:-}: SKIPPED"
+                    _alert="SKIPPED"
+                    UI_Passive_Alert "${_alert}"
+                    Unit_Report "${_state_line} -> ${_alert}"
+                fi
             fi
-        elif Is_True $SYSTEM_UPDATE && [[ -n ${_system_update_command} ]]
+        elif Is_True ${SYSTEM_UPDATE:-} && [[ -n ${_system_update_command:-} ]]
         then # SYSTEM UPDATE MODE
-            UI_Passive_Alert "${_id}: ${_system_file_path} ${_report:+>>> }${_report}"
-            if Is_True ${SYSTEM_UPDATE}
+Debug
+            UI_Passive_Alert "${_state_newline}"
+            if Is_True ${FORCE:-}
             then
-                eval "${_system_update_command}" \
-                    && UI_Passive_Alert "${_system_update_query}: DONE"
+Debug
+                eval eval "${_system_update_command}" \
+                    && UI_Passive_Alert "${_system_update_query}: DONE" \
                     || UI_Passive_Alert "${_system_update_query}: FAILED"
             else
-                UI_Active_Alert "${_system_update_query}" \
-                    && eval "${_system_update_command}" \
-                    && UI_Passive_Alert "${_system_update_query}: DONE"
-                    || UI_Passive_Alert "${_system_update_query}: FAILED"
+                if [[ -z "${_system_update_query}" ]]
+                then
+                    UI_Passive_Alert "${_state_line}"
+                    Unit_Report "${_state_line}"
+                elif UI_Active_Alert "${_system_update_query}"
+                then
+Debug
+                    eval eval "${_system_update_command}" \
+                    && _alert="${_system_update_query}: DONE" \
+                    || _alert="${_system_update_query}: FAILED"
+                    UI_Passive_Alert "${_alert}"
+                    Unit_Report "${_state_line} -> ${_alert}"
+                else
+                    #_alert="${_system_update_query}: SKIPPED"
+                    _alert="SKIPPED"
+                    UI_Passive_Alert "${_alert}"
+                    Unit_Report "${_state_line} -> ${_alert}"
+                fi
             fi
+        else
+Debug
+            UI_Passive_Alert "${_state_line}"
+            Unit_Report "${_state_line}"
         fi
     done
 else
@@ -621,10 +673,9 @@ else
 fi
 
 
+#In system update mode
 
-In system update mode
-
-In snapshot update mode
+#In snapshot update mode
 
 #
 #    local _line
