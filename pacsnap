@@ -77,9 +77,12 @@ INSTALL_BACKUP_MODE=simple # cf man install
 # be detected by this unless referenced somewhere else in its full form.
 # TODO: only the first assoc array on a line will be declared. Currently the 
 # variable name can only be prefixed by non-word characters
+# NOTE: "line: xxx: NAME: unbound variable errors are likely because an 
+# associative array isn't being detected (usually forgot to use a trailing 
+# underscore).
 
 for filename in $0 $LIBS_DIRPATH/*; do
-for assoc_array in $(egrep '^[^#]*_(\[.*\])?[+=]' $filename | sed 's/\W*\(\w\+_\)[\[\=\].*/\1/' | sort | uniq)
+for assoc_array in $(egrep '^[^#]*_(\[.*\])?[+=]' $filename | sed 's/\W*\(\w\+_\)[\[\=\].*/\1/' | sort -u)
     do
         eval "declare -A $assoc_array";
     done;
@@ -127,6 +130,14 @@ OPT_GROUP_CURRENCY_CHECK_=(
 [ALERT]='Suppress group check OFF; Groups will be checked for currency.'
 [ALERT_SET]='Suppress group check ON; Groups will not be checked for currency.'
 [USAGE]='Suppress group currency check; Skip checking current group packages.'
+)
+OPT_OVERLAY_DIFF_DISPLAY_=(
+[FLAG]='d'
+[STATE]='false'
+[STATE_SET]='true'
+[ALERT]='Overlay file diff OFF; No file diff report will be displayed.'
+[ALERT_SET]='Overlay file diff ON; File diff report will be displayed.'
+[USAGE]='Overlay files will be diffed with system files and result displayed.'
 )
 OPT_GIT_UPDATE_=(
 [FLAG]='g'
@@ -200,7 +211,6 @@ PrepareEnvironment
 InitializeOptions
 InitializeSnapshotState
 InitializeSystemState
-InitializeStateDifferential
 UpdateSnapshot
 UpdateSystem
 ReportResults
@@ -211,6 +221,8 @@ PrepareEnvironment
 InitializeOptions
 InitializeSnapshotState
 InitializeSystemState
+UpdateSnapshot
+UpdateSystem
 ReportResults
 CleanUpEnvironment
 "
@@ -313,32 +325,27 @@ UNIT_InitializeSystemState ()
 # ----------------------------------------------------------------------
 GROUPS_[POTENTIAL]=$(pacman -Qg | awk '{print $1}' | sort -u)
 UI_Incremental_Alert "\nDetecting installed groups... "
-if Is_True $DEBUG
-then
-    GROUPS_[DETECTED]="base base-devel xfce4 xorg xorg-apps xorg-drivers xorg-fonts" #DEBUG
-else
-    local _group
-    for _group in ${GROUPS_[POTENTIAL]}
-    do
-        # get percentage of group already installed
-        # sort -u required (via Normalize_To_List) as there can be duplicate package 
-        # reporting if testing repos are live, for instance
-        GROUP_PACKAGES_LOCAL_[${_group}]="$(pacman -Qgq $_group)"
-        GROUP_PACKAGES_REPO_[${_group}]="$(pacman -Sgq $_group)"
-        local _group_count_local=$(echo ${GROUP_PACKAGES_LOCAL_[${_group}]} \
-            | Normalize_To_List | wc -l)
-        local _group_count_repo=$(echo ${GROUP_PACKAGES_REPO_[${_group}]} \
-            | Normalize_To_List | wc -l)
-        local _threshold=12
-        local _score=$(echo $((($_group_count_repo*10)/$_group_count_local)))
-        if [[ $_score -le $_threshold ]]
-        then
-            GROUPS_[DETECTED]+="$_group "
-            UI_Incremental_Alert "$_group "
-        fi
-    done
-    UI_Incremental_Alert # finishes the incremental alert line
-fi
+local _group
+for _group in ${GROUPS_[POTENTIAL]}
+do
+    # get percentage of group already installed
+    # sort -u required (via Normalize_To_List) as there can be duplicate package 
+    # reporting if testing repos are live, for instance
+    GROUP_PACKAGES_LOCAL_[${_group}]="$(pacman -Qgq $_group)"
+    GROUP_PACKAGES_REPO_[${_group}]="$(pacman -Sgq $_group)"
+    local _group_count_local=$(echo ${GROUP_PACKAGES_LOCAL_[${_group}]} \
+        | Normalize_To_List | wc -l)
+    local _group_count_repo=$(echo ${GROUP_PACKAGES_REPO_[${_group}]} \
+        | Normalize_To_List | wc -l)
+    local _threshold=12
+    local _score=$(echo $((($_group_count_repo*10)/$_group_count_local)))
+    if [[ $_score -le $_threshold ]]
+    then
+        GROUPS_[DETECTED]+="$_group "
+        UI_Incremental_Alert "$_group "
+    fi
+done
+UI_Incremental_Alert # finishes the incremental alert line
 Unit_Report "INSTALLED GROUPS (DETECTED>80% MEMBER PACKAGE 
 INSTALL):\n${GROUPS_[DETECTED]}"
 
@@ -350,7 +357,6 @@ if Is_True ${GROUP_CURRENCY_CHECK}; then
 local _group
 for _group in ${GROUPS_[DETECTED]}
 do
-
     GROUP_PACKAGES_MISSING_IN_GROUP_[${_group}]="$(\
         Set_Op_Difference \
         "${GROUP_PACKAGES_REPO_[$_group]}" \
@@ -368,7 +374,6 @@ do
     [[ -z ${GROUP_PACKAGES_REMOVED_FROM_GROUP_[$_group]:-} ]] \
     || local _report_removed+="MISSING (from group \"${_group}\"):
     ${GROUP_PACKAGES_REMOVED_FROM_GROUP_[$_group]}\n"
-
 done
 
 [[ -z ${_report_missing:-} ]] \
@@ -413,19 +418,19 @@ Unit_Report ${AUR_[LIVE]:-NONE}
 
 [[ -z ${PACKAGES_MISSING_IN_[LIVE]:-} ]] \
 || Unit_Report "\nSNAPSHOT PACKAGES NOT INSTALLED ON LIVE SYSTEM:
-$(echo ${PACKAGES_MISSING_IN_[LIVE]})"
+\n$(echo ${PACKAGES_MISSING_IN_[LIVE]})"
 
 [[ -z ${AUR_MISSING_IN_[LIVE]:-} ]] \
 || Unit_Report "\nSNAPSHOT AUR PACKAGES NOT INSTALLED ON LIVE SYSTEM:
-${AUR_MISSING_IN_[LIVE]})"
+\n${AUR_MISSING_IN_[LIVE]})"
 
 [[ -z ${PACKAGES_MISSING_IN_[FILE]:-} ]] \
 || Unit_Report "\nPACKAGES INSTALLED ON LIVE SYSTEM BUT NOT IN SNAPSHOT:
-$(echo ${PACKAGES_MISSING_IN_[FILE]})"
+\n$(echo ${PACKAGES_MISSING_IN_[FILE]})"
 
 [[ -z ${AUR_MISSING_IN_[FILE]:-} ]] \
 || Unit_Report "\nAUR PACKAGES INSTALLED ON LIVE SYSTEM BUT NOT IN SNAPSHOT:
-$(echo ${AUR_MISSING_IN_[FILE]})"
+\n$(echo ${AUR_MISSING_IN_[FILE]})"
 
 # OVERLAY FILE CHECK
 # ----------------------------------------------------------------------
@@ -446,23 +451,104 @@ $(echo ${AUR_MISSING_IN_[FILE]})"
 # - record the names and report the diff value of any files that differ from
 #   the live system
 
-#UI_Passive_Alert "Checking overlay files"
-#DEFAULT_ATTRIBS="644 root root"
+if [[ -n "${OVERLAY_[FILE]}" ]]
+then
+    UI_Passive_Alert "Checking overlay files list in ${OVERLAY_[FILEPATH]}"
+    DEFAULT_ATTRIBS="644 root root"
+    _IFS=$IFS; IFS=$'\n'
+    local _line
+    for _line in ${OVERLAY_[FILE]}
+    do
+        local _system_file_path=$(echo -n $_line | awk '{print $1}')
+        local _overlaydir_file_path="${OVERLAY_[DIRPATH]}${_system_file_path}"
+        local _attribs_file=$(echo -n $_line | awk '{print $2,$3,$4}')
+        local _attribs_live=$(stat -c '%a %U %G' ${_system_file_path} 2>/dev/null)
+        [[ ! -e "${_system_file_path}" ]] \
+        && local _system_file_present=false \
+        || local _system_file_present=true
+        [[ ! -e "${_overlaydir_file_path}" ]] \
+        && local _overlay_file_present=false \
+        || local _overlay_file_present=true
+        diff -q "${_overlaydir_file_path}" "${_system_file_path}" &>/dev/null \
+        && local _overlay_diff=false \
+        || local _overlay_diff=true
+    done
+else
+    UI_Passive_Alert "Skipping overlay files check; no overlay file list in 
+    ${OVERLAY_[FILEPATH]}."
+fi
+
+
+
+
 #
+#    local _line
+#    for _line in ${OVERLAY_[FILE]}
+#    do
+#        local _path=$(echo -n $_line | awk '{print $1}')
+#        local _attribs_file=$(echo -n $_line | awk '{print $2,$3,$4}')
+#        if [[ -e "${OVERLAY_[DIRPATH]}${_path}" ]]
+#        then
+#            local _overlay_file_present=true
+#            if [[ -e "${_path}" ]]
+#            then
+#                # system file present
+#                if diff -q "${OVERLAY_[DIRPATH]}${_path}" "${_path}" &>/dev/null
+#                then
+#                    # files are identical
+#                    _message+="\nCONTENT MATCH: Snapshot and system file content are the same for overlay file: ${_path}"
+#                else
+#                    # files are different
+#                    _message+="\nCONTENT DIFF: Snapshot and system file content differ from overlay file: ${_path}"
+#                    if Is_True ${OVERLAY_DIFF_DISPLAY}
+#                    then
+#                        _message+="$(diff -y "${OVERLAY_[DIRPATH]}${_path}" "${_path}" || true)\n"
+#                    fi
+#                    :
+#                fi
+#                local _attribs_live=$(stat -c '%a %U %G' ${_path})
+#                if [[ "${_attribs_file}" == "${_attribs_live}" ]]
+#                then
+#                    _message+="\nATTRIB MATCH: Overlay file present and attributes match snapshot: ${_path} ${_attribs_file}"
+#                else
+#                    _message+="\nATTRIB DIFF: Overlay file present with different attributes: ${_path} SNAPSHOT: ${_attribs_file} SYSTEM: ${_attribs_live}"
+#                fi
+#            else
+#                _message+="\nOverlay file not present on system: ${_path}"
+#            fi
+#        else
+#                _message+="\nOverlay file not present in overlay directory: ${_path}"
+#                if [[ -e "${_path}" ]]
+#                then
+#                    _message+="\nOverlay file present in system: ${_path}"
+#                else
+#                    _message+="\nOverlay file not present in system: ${_path}"
+#                fi
+#        fi
+#        _message+="\n"
+#    done
+#    UI_Passive_Alert "${_message}"
+#    IFS=$_IFS
+#else
+#    UI_Passive_Alert "Skipping overlay files check; no overlay file list in 
+#    ${OVERLAY_[FILEPATH]}"
+#fi
+
 #_IFS=$IFS; IFS=$'\n'
 #for line in ${OVERLAY_[FILE]}
 #do
 #    _path=$(echo -n $line | awk '{print $1}')
 #    _attribs=$(echo -n $line | awk '{print $2,$3,$4}')
-#    [[ -e $_path ]] && _live_attribs=$(stat -c '%a %U %G' $_path)
-#    [[ -z $_attribs && -e $_path ]] && _attribs=$_live_attribs
-#    #TODO: may be better to not set default values in case of no current live file
-#    #[[ -z $_attribs ]] && _attribs=$DEFAULT_ATTRIBS
-#    overlay_files[reviewed]+="$_path $_attribs\n"
-#    [[ -e $_path ]] && overlay_files[live]+="$_path $_live_attribs\n" || overlay_files[live]+="$_path $_attribs\n"
+#    [[ -e "${_path}" ]] && _live_attribs=$(stat -c '%a %U %G' ${_path})
+#    [[ -z "${_attribs}" && -e "${_path}" ]] && _attribs="${_live_attribs}"
+#    OVERLAY_[REVIEWED]+="$_path $_attribs\n"
+#    [[ -e "$_path" ]] \
+#        && OVERLAY_[LIVE]+="$_path $_live_attribs\n" \
+#        || OVERLAY_[LIVE]+="$_path $_attribs\n"
 #    overlay_files[paths]+="$_path\n"
 #done
 #IFS=$_IFS
+
 #overlay_files[file]="$(echo -e "${overlay_files[reviewed]}" | sed '/^$/d')"
 #overlay_files[live]="$(echo -e "${overlay_files[live]}" | sed '/^$/d')"
 #overlay_files[paths]="$(echo -e "${overlay_files[paths]}" | sed '/^$/d')"
@@ -479,16 +565,15 @@ $(echo ${AUR_MISSING_IN_[FILE]})"
 
 UNIT_UpdateSnapshot ()
 {
-$(Is_True $UPDATE_SNAPSHOT) || return
+$(Is_True $SNAPSHOT_UPDATE) || return 0
 # use differential to update snapshot state
 # prompting unless in force mode
 # (herein it's pseudo functional)
-
 }
 
 UNIT_UpdateSystem ()
 {
-$(Is_True $UPDATE_SYSTEM) || return
+$(Is_True $SYSTEM_RESTORE) || return 0
 # use differential to update system state
 # prompting unless in force mode
 # (herein it's pseudo functional)
@@ -503,7 +588,6 @@ UNIT_ReportResults ()
 # trap to CleanUpEnvironment (which would have been called after 
 # ReportResults)
 trap 'UNIT_CleanUpEnvironment' INT TERM EXIT
-
 if [[ -n ${REPORT_SEQUENCE_[@]:-} ]]
 then
     for _report_category in "${REPORT_SEQUENCE_[@]:-}"
@@ -530,14 +614,3 @@ do
     eval UNIT_$unit
 done
 unset unit
-
-
-
-
-exit
-
-
-
-
-
-

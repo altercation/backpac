@@ -129,21 +129,25 @@ UI_Passive_Alert ()
     eval "local _alert=\"\\n${1}\""
     echo -e "${_alert}"
 }
+
 UI_Active_Alert ()
 {
     eval eval "echo -e \"\\n${1}\""
     Query "Proceed?"
 }
+
 UI_Incremental_Alert ()
 {
     #eval "local _alert=\"\\n${1}\""
     [[ -n ${1:-} ]] && echo -ne "${1}" || echo
 }
+
 UI_Passive_Warning ()
 {
     echo -e "\nWARNING"
     eval "echo -e \"${*}\""
 }
+
 UI_Active_Warning ()
 {
     echo -e "\nWARNING"
