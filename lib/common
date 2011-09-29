@@ -1,9 +1,7 @@
 #!/bin/bash
 
-Install_Package ()
-{
-    sudo pacman -Sq --noconfirm "${1}"
-}
+Install_Package () { sudo pacman -Sq --noconfirm "${1}"; }
+Uninstall_Package () { sudo pacman -Rsu --noconfirm "${1}"; }
 
 # Install_Package_From_AUR <package_name>
 # Syncs dependencies from official repositories with makepkg
@@ -87,10 +85,10 @@ Execute_With_Failsafe_Rollback ()
 }
 
 Debug () { echo -e ">>> DEBUG: EXECUTING ${FUNCNAME[1]} AT LINE ${BASH_LINENO[0]}${*:+ >>> }${*:-}"; }
-Is_True () { case $(Lower_Case ${1:-}) in true|yes|1|y|set) return 0 ;; *) return 1 ;; esac; }
+Is_True () { case $(Lower_Case ${1:-}) in true|yes|1|y) return 0 ;; *) return 1 ;; esac; }
+Is_False () { case $(Lower_Case ${1:-}) in false|no|0|n) return 0 ;; *) return 1 ;; esac; }
 Upper_Case () { echo -n "$*" | tr '[:lower:]' '[:upper:]'; }
 Lower_Case () { echo -n "$*" | tr '[:upper:]' '[:lower:]'; }
-Query () { while true; do read -p "${1:-} (y/n) " response; case $response in [yY]*) return 0; ;; [nN]*) return 1; ;; esac; done; }
 
 compare () { echo "$(comm -23 <(echo "${1}" | sort -u ) <(echo "${2}" | sort -u ))"; }
 common () { echo "$(comm -12 <(echo "${1}" | sort -u ) <(echo "${2}" | sort -u ))"; }
@@ -106,8 +104,8 @@ regen () { echo "TODO: add mkinitcpio, grub regen here"; }
 # Read a file's contents, stripping comment lines
 Read_File_Drop_Comments ()
 {
-    [[ -e $1 ]] && cat $1 | egrep "^\s*[^#]"
-    return 0
+    [[ -e ${1} ]] && cat $1 | egrep "^\s*[^#]" || Unit_Report "FILE NOT PRESENT: ${1}"
+    #return 0
 }
 
 Unit_Report ()
@@ -127,20 +125,14 @@ Unit_Report ()
     fi
 
     # add report string to report category string
-    REPORT_[${_category#UNIT_}]+="${_message}\n";
+    #REPORT_[${_category#UNIT_}]+="$(echo ${_message} | fmt -uw ${COLUMNS:-72} )\n";
+    REPORT_[${_category#UNIT_}]+="$(echo ${_message})\n";
 }
 
 UI_Passive_Alert ()
 {
     eval "local _alert=\"${1:-}\""
     [[ -n ${_alert:-} ]] && echo -e "${_alert}"
-}
-
-UI_Active_Alert ()
-{
-    eval "local _alert=\"${1}\""
-    echo -en "${_alert}"
-    Query "?"
 }
 
 UI_Incremental_Alert ()
@@ -155,7 +147,7 @@ UI_Passive_Warning ()
     eval "echo -e \"${*}\""
 }
 
-UI_Active_Warning ()
+UI_Query_Warning ()
 {
     echo -e "\nWARNING"
     eval "echo -e \"${*}\""
@@ -379,3 +371,106 @@ Normalize_To_List ()
         || return 0
 }
 
+
+Ask_Auto_Action ()
+{
+# ASK_AUTO_SOURCE_=(
+# [LIST_NAME]='testlist'
+# [LIST_VALUE]='if no global list used via LIST_NAME, this can contain actual list source'
+# [QUERY_STRING]='string for query prompt ${_item}'
+# [FORCE_VALUE]='${FORCE}'
+# [DEFAULT_CHOICE]='false'
+#
+# [ACTION_CMD]='echo "command if selected y/Y"'
+#
+# [EXECUTED_CMD]='echo "executed items include: $_executed"'
+# [SKIPPED_CMD]='echo "skipped items include: $_skipped_list"'
+# [FAILED_CMD]='echo "failed items include: $_failed_list"'
+#
+# [SKIPPED_RTN_NAME]='name_of_var_to_return_skipped_list'
+# [EXECUTED_RTN_NAME]='name_of_var_to_return_skipped_list'
+# [FAILED_RTN_NAME]='name_of_var_to_return_skipped_list'
+#
+# )
+# Ask_Auto_Action ASK_AUTO_SET_NAME_
+local _source_set="${1}"
+
+local _item=
+local _executed_list=
+local _failed_list=
+local _skipped_list=
+
+eval "local _list_var_name=\"\${$_source_set[LIST_VAR_NAME]:-}\""
+if [[ -n ${_list_var_name:-} ]]
+then
+    eval "local _list=\"\$(echo \${!_list_var_name} | Normalize_List)\""
+else
+    eval "local _list=\"\$(echo \${$_source_set[LIST_VALUE]} | Normalize_List)\""
+fi
+eval "local _query_string=\"\${$_source_set[QUERY_STRING]}\""
+eval "local _force=\"\${$_source_set[FORCE_VALUE]}\""
+eval "local _default_choice=\"\${$_source_set[DEFAULT_CHOICE]}\""
+_action_command   () { eval eval \${$_source_set[ACTION_CMD]}; }
+_executed_command () { eval eval \${$_source_set[EXECUTED_CMD]}; }
+_skipped_command  () { eval eval \${$_source_set[SKIPPED_CMD]}; }
+_failed_command   () { eval eval \${$_source_set[FAILED_CMD]}; }
+_executed_list_command () { eval eval \${$_source_set[EXECUTED_LIST_CMD]}; }
+_skipped_list_command  () { eval eval \${$_source_set[SKIPPED_LIST_CMD]}; }
+_failed_list_command   () { eval eval \${$_source_set[FAILED_LIST_CMD]}; }
+eval "local _skipped_rtn_name=\"\${$_source_set[SKIPPED_RTN_NAME]:-}\""
+eval "local _executed_rtn_name=\"\${$_source_set[EXECUTED_RTN_NAME]:-}\""
+eval "local _failed_rtn_name=\"\${$_source_set[FAILED_RTN_NAME]:-}\""
+
+Is_True ${_force} && _choice=${_default_choice} || _choice=
+for _item in $_list
+do
+    if ! Is_True ${_force}; then
+        Query "${_query_string}" _force && _choice=true || _choice=false
+    fi
+    if Is_True ${_choice}; then
+        if _action_command
+        then
+            _executed_list+="${_item} "
+            _executed_command
+        else
+            _failed_list+="${_item} "
+            _failed_command
+        fi
+    else
+        _skipped_list+="${_item} "
+        _skipped_command
+    fi
+done
+local _output
+for _output in executed skipped failed
+do
+_output_list_name="_${_output}_list"
+_output_rtn_name="_${_output}_rtn_name"
+if  [[ -n "${!_output_list_name:-}" ]]; then
+    [[ -n ${!_output_rtn_name:-} ]] && eval ${!_output_rtn_name}=\"\${_${_output}_list}\"
+    eval _${_output}_list_command
+fi
+done
+}
+
+# takes two arguments
+# 1: Prompt string to which is added (y/n)
+# 2: name of temporary global to set to true if response is for all
+Query ()
+{
+    eval "local _alert=\"${1}\""
+    echo -en "${_alert}"
+    while true
+    do
+        [[ -n ${2:-} ]] \
+            && local _prompt=" (y/n for this; Y/N for all remaining) " \
+            || local _prompt=" (y/n) "
+        read -p "${_prompt}" response
+        case $response in
+            y*) return 0 ;;
+            Y*) [[ -n ${2:-} ]] && eval ${2}=true; return 0 ;;
+            n*) return 1 ;;
+            N*) [[ -n ${2:-} ]] && eval ${2}=true; return 1 ;;
+        esac
+    done
+}
