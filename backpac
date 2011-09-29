@@ -3,25 +3,6 @@
 TestFunc ()
 {
 return
-testlist="aa bb cc dd ee ff gg hh"
-ASK_AUTO_SOURCE_=(
-[LIST_VALUE]='iaaa bbbb ccc ddd ee ff gggg hhh iiii'
-[QUERY_STRING]='string for query prompt ${_item}'
-[ACTION_CMD]='echo "command if selected y/Y"'
-
-[SKIPPED_CMD]='echo "skipped items include: $_skipped_list"'
-[EXECUTED_CMD]='echo "executed items include: $_executed_list"'
-[FAILED_CMD]='echo "failed items include: $_failed_list"'
-
-[SKIPPED_RTN_NAME]='name_of_var_to_return_skipped_list'
-[EXECUTED_RTN_NAME]='name_of_var_to_return_skipped_list'
-[FAILED_RTN_NAME]='name_of_var_to_return_skipped_list'
-
-[FORCE_VALUE]='false'
-[DEFAULT_CHOICE]='false'
-)
-Ask_Auto_Action ASK_AUTO_SOURCE_
-exit
 }
 
 # ----------------------------------------------------------------------
@@ -87,9 +68,12 @@ DEFAULT_BACKUP_MODE=simple # cf man install
 # associative array isn't being detected (usually forgot to use a trailing 
 # underscore).
 
+
 for filename in $0 $LIBS_DIRPATH/*; do
-for assoc_array in $(egrep '^[^#]*_(\[.*\])?[+=]' $filename | sed 's/\W*\(\w\+_\)[\[\=\].*/\1/' | sort -u)
+#for assoc_array in $(egrep '^[^#]*_(\[.*\])?[+=]' $filename | sed 's/\W*\(\w\+_\)[\[\=\].*/\1/' | sort -u)
+for assoc_array in $(egrep '^[^#]*_(\[.*\])?[+=]' $filename | sed 's/\W*\(\W*\)\(\w\+_\)[\[\=\].*/\1-----\2/' | sed 's/.*-----\(.*\)/\1/' | sort -u)
     do
+        #echo "declare -A $assoc_array";
         eval "declare -A $assoc_array";
     done;
 done; unset filename
@@ -147,6 +131,14 @@ OPT_FORCE_=(
 [ALERT]='Force mode OFF; Prompt before file write operations.'
 [ALERT_SET]='Force mode ON; No prompts presented (CAUTION).'
 [USAGE]='Force all write operations; no prompts will be given.'
+)
+OPT_FULL_FORCE_=(
+[FLAG]='f'
+[STATE]='false'
+[STATE_SET]='true'
+[ALERT]='Full Force mode OFF; No automatic uninstalls.'
+[ALERT_SET]='Full Force mode ON; Automatic uninstalls.'
+[USAGE]='DANGER: Force mode with auto uninstalls, no-initial prompt.'
 )
 OPT_GROUP_CURRENCY_CHECK_=(
 [FLAG]='G'
@@ -301,6 +293,10 @@ PACKAGES_[FILEPATH]="${SNAPSHOT_DIRPATH}/${PACKAGES_[FILENAME]}"
 AUR_[FILEPATH]="${SNAPSHOT_DIRPATH}/${AUR_[FILENAME]}"
 OVERLAY_[FILEPATH]="${SNAPSHOT_DIRPATH}/${OVERLAY_[FILENAME]}"
 OVERLAY_[DIRPATH]="${SNAPSHOT_DIRPATH}/${OVERLAY_[DIRNAME]}"
+
+# set force if full force
+Is_True ${FULL_FORCE} && FORCE=true
+# TODO: remove initial prompt if full force
 
 # set execution mode
 if ! Is_True ${SYSTEM_UPDATE:-} && ! Is_True ${SNAPSHOT_UPDATE:-}
@@ -472,36 +468,32 @@ then
     fi
 
     local _group
-    for _group in ${!GROUP_PACKAGES_MISSING_IN_GROUP_[*]}
-    do
-        if [[ -n "${GROUP_PACKAGES_MISSING_IN_GROUP_[$_group]}" ]]
-        then
-            if ! Is_True ${FORCE} && [[ "${MODE}" == "SYSTEM" ]]
-            then
-                UI_Passive_Alert "MISSING from group \"${_group}\":"
-                ASK_AUTO_SOURCE_=(
-                [LIST_VAR_NAME]=''
-                [LIST_VALUE]="${GROUP_PACKAGES_MISSING_IN_GROUP_[$_group]}"
-                [QUERY_STRING]='Install ${_item}?'
-                [ACTION_CMD]='Install_Package "${_item}"'
-                [EXECUTED_CMD]=''
-                [SKIPPED_CMD]=''
-                [FAILED_CMD]=''
-                [EXECUTED_LIST_CMD]='Unit_Report "MISSING from group \"${_group}\", INSTALLED: ${_executed_list}"'
-                [SKIPPED_LIST_CMD]='Unit_Report "MISSING from group \"${_group}\", INSTALL SKIPPED: ${_skipped_list}"'
-                [FAILED_LIST_CMD]='Unit_Report "MISSING from group \"${_group}\", INSTALL FAILED: ${_failed_list}"'
-                [EXECUTED_RTN_NAME]=''
-                [SKIPPED_RTN_NAME]=''
-                [FAILED_RTN_NAME]=''
-                [FORCE_VALUE]='${FORCE}'
-                [DEFAULT_CHOICE]='false'
-                )
-                Ask_Auto_Action ASK_AUTO_SOURCE_
-            else
-                Unit_Report "MISSING from group \"${_group}\": ${GROUP_PACKAGES_MISSING_IN_GROUP_[$_group]}\n"
-            fi
-        fi
-    done
+    for _group in ${!GROUP_PACKAGES_MISSING_IN_GROUP_[*]}; do
+    if [[ -n "${GROUP_PACKAGES_MISSING_IN_GROUP_[$_group]}" ]]; then
+    if ! Is_True ${FORCE} && [[ "${MODE}" == "SYSTEM" ]]; then
+        UI_Passive_Alert "MISSING from group \"${_group}\":"
+        ASK_AUTO_SOURCE_=(
+        [LIST_VAR_NAME]=''
+        [LIST_VALUE]="${GROUP_PACKAGES_MISSING_IN_GROUP_[$_group]}"
+        [QUERY_STRING]='Install ${_item}?'
+        [ACTION_CMD]='Install_Package "${_item}"'
+        [EXECUTED_CMD]=''
+        [SKIPPED_CMD]=''
+        [FAILED_CMD]=''
+        [EXECUTED_LIST_CMD]='Unit_Report "MISSING from group \"${_group}\", INSTALLED: ${_executed_list}"'
+        [SKIPPED_LIST_CMD]='Unit_Report "MISSING from group \"${_group}\", INSTALL SKIPPED: ${_skipped_list}"'
+        [FAILED_LIST_CMD]='Unit_Report "MISSING from group \"${_group}\", INSTALL FAILED: ${_failed_list}"'
+        [EXECUTED_RTN_NAME]=''
+        [SKIPPED_RTN_NAME]=''
+        [FAILED_RTN_NAME]=''
+        [FORCE_VALUE]='${FORCE}'
+        [DEFAULT_CHOICE]='${FULL_FORCE}'
+        )
+        Ask_Auto_Action ASK_AUTO_SOURCE_
+    else
+        Unit_Report "MISSING from group \"${_group}\": ${GROUP_PACKAGES_MISSING_IN_GROUP_[$_group]}\n"
+    fi; fi; done
+
     # regen packages list in case of changes to group packages
     # TODO: could check if changes were made, but this is a low cost procedure
     local _group
@@ -510,6 +502,7 @@ then
         GROUP_PACKAGES_LOCAL_[${_group}]="$(pacman -Qgq $_group)"
         GROUP_PACKAGES_REPO_[${_group}]="$(pacman -Sgq $_group)"
     done
+
 fi # end of test for any missing group packages
 
 if [[ -n "${GROUP_PACKAGES_REMOVED_FROM_GROUP_[*]:-}" ]]
@@ -525,52 +518,45 @@ then
     if ! Is_True ${FORCE} && [[ "${MODE}" == "SYSTEM" ]]
     then
         # SYSTEM, NON FORCE MODE
-            UI_Passive_Alert "${_alert_intro}"
-            [[ -n ${_skip_alert} ]] && UI_Passive_Alert "${_skip_alert}\n"
-            _skip_alert=
+        UI_Passive_Alert "${_alert_intro}"
+        [[ -n ${_skip_alert} ]] && UI_Passive_Alert "${_skip_alert}\n"
+        _skip_alert=
     else
         # REPORT, SNAPSHOT, OR SYSTEM-FORCE (don't auto install group pkgs?)
-            Unit_Report "${_alert_intro}"
-            [[ -n ${_runagain_alert} ]] && Unit_Report "${_runagain_alert}"
-            [[ -n ${_skip_alert} ]] && Unit_Report "${_skip_alert}"
-            _skip_alert=
-            _runagain_alert=
+        Unit_Report "${_alert_intro}"
+        [[ -n ${_runagain_alert} ]] && Unit_Report "${_runagain_alert}"
+        [[ -n ${_skip_alert} ]] && Unit_Report "${_skip_alert}"
+        _skip_alert=
+        _runagain_alert=
     fi
-
     local _group
-    for _group in ${!GROUP_PACKAGES_REMOVED_FROM_GROUP_[*]}
-    do
-        if [[ -n "${GROUP_PACKAGES_REMOVED_FROM_GROUP_[$_group]}" ]]
-        then
-            if ! Is_True ${FORCE} && [[ "${MODE}" == "SYSTEM" ]]
-            then
-                # SYSTEM, NON FORCE MODE
-                UI_Passive_Alert "REMOVED from group \"${_group}\":"
-                ASK_AUTO_SOURCE_=(
-                [LIST_VAR_NAME]=''
-                [LIST_VALUE]="${GROUP_PACKAGES_REMOVED_FROM_GROUP_[$_group]}"
-                [QUERY_STRING]='Install ${_item}'
-                [ACTION_CMD]='Uninstall_Package "${_item}?'
-                [EXECUTED_CMD]=''
-                [SKIPPED_CMD]=''
-                [FAILED_CMD]=''
-                [EXECUTED_LIST_CMD]='Unit_Report "REMOVED from repo group \"${_group}\", UNINSTALLED: ${_executed_list}"'
-                [SKIPPED_LIST_CMD]='Unit_Report "REMOVED from repo group \"${_group}\", UNINSTALL SKIPPED: ${_skipped_list}"'
-                [FAILED_LIST_CMD]='Unit_Report "REMOVED from repo group \"${_group}\", UNINSTALL FAILED: ${_failed_list}"'
-                [EXECUTED_RTN_NAME]=''
-                [SKIPPED_RTN_NAME]=''
-                [FAILED_RTN_NAME]=''
-                [FORCE_VALUE]='${FORCE}'
-                [DEFAULT_CHOICE]='false'
-                )
-                Ask_Auto_Action ASK_AUTO_SOURCE_
-            else
-                Unit_Report "REMOVED from group \"${_group}\": ${GROUP_PACKAGES_REMOVED_FROM_GROUP_[$_group]}\n"
-            fi
-        fi
-    done
+    for _group in ${!GROUP_PACKAGES_REMOVED_FROM_GROUP_[*]}; do
+    if [[ -n "${GROUP_PACKAGES_REMOVED_FROM_GROUP_[$_group]}" ]]; then
+    if ! Is_True ${FORCE} && [[ "${MODE}" == "SYSTEM" ]]; then
+        # SYSTEM, NON FORCE MODE
+        UI_Passive_Alert "REMOVED from group \"${_group}\":"
+        ASK_AUTO_SOURCE_=(
+        [LIST_VAR_NAME]=''
+        [LIST_VALUE]="${GROUP_PACKAGES_REMOVED_FROM_GROUP_[$_group]}"
+        [QUERY_STRING]='Install ${_item}'
+        [ACTION_CMD]='Uninstall_Package "${_item}?'
+        [EXECUTED_CMD]=''
+        [SKIPPED_CMD]=''
+        [FAILED_CMD]=''
+        [EXECUTED_LIST_CMD]='Unit_Report "REMOVED from repo group \"${_group}\", UNINSTALLED: ${_executed_list}"'
+        [SKIPPED_LIST_CMD]='Unit_Report "REMOVED from repo group \"${_group}\", UNINSTALL SKIPPED: ${_skipped_list}"'
+        [FAILED_LIST_CMD]='Unit_Report "REMOVED from repo group \"${_group}\", UNINSTALL FAILED: ${_failed_list}"'
+        [EXECUTED_RTN_NAME]=''
+        [SKIPPED_RTN_NAME]=''
+        [FAILED_RTN_NAME]=''
+        [FORCE_VALUE]='${FORCE}'
+        [DEFAULT_CHOICE]='${FULL_FORCE}'
+        )
+        Ask_Auto_Action ASK_AUTO_SOURCE_
+    else
+        Unit_Report "REMOVED from group \"${_group}\": ${GROUP_PACKAGES_REMOVED_FROM_GROUP_[$_group]}\n"
+    fi; fi; done
 fi # end of test for any removed group packages
-
 fi # end of group currency check test
 }
 
@@ -580,13 +566,16 @@ UNIT_Packages ()
 # ----------------------------------------------------------------------
 
 UI_Passive_Alert "Getting list of explicitly installed packages"
+
 # TODO: deal with timeline of updating the group packages
 #PACKAGES_LOCAL_[ALLGROUPS]="$(pacman -Qgq | Normalize_To_List)"
+
 local _packages_groups="$(echo "${GROUP_PACKAGES_LOCAL_[*]}" | Normalize_To_List)"
 local _packages_explicit="$(pacman -Qeq)"
 local _packages_manual="$(pacman -Qmq)"
 local _packages_repo="$(Set_Op_Difference "${_packages_explicit}" "${_packages_manual}")"
 local _packages_noaur="$(Set_Op_Difference "${_packages_explicit}" "${_packages_manual}")"
+
 PACKAGES_[LIVE]="$(Set_Op_Difference "${_packages_repo}" "${_packages_groups}")"
 AUR_[LIVE]="$(Set_Op_Intersection "${_packages_explicit}" "${_packages_manual}")"
 PACKAGES_MISSING_IN_[LIVE]="$(Set_Op_Difference "${PACKAGES_[FILE]}" "${PACKAGES_[LIVE]}")"
@@ -596,200 +585,176 @@ AUR_MISSING_IN_[FILE]="$(Set_Op_Difference "${AUR_[LIVE]}" "${AUR_[FILE]}")"
 
 _report_packages_live="\nOFFICIAL PACKAGES (EXCL. DEPENDENCIES, NO GROUP PACKAGES): \n$(echo ${PACKAGES_[LIVE]:-NONE})"
 _report_aur_live="\nAUR PACKAGES (EXCL. DEPENDENCIES):\n$(echo ${AUR_[LIVE]:-NONE})"
+Unit_Report "$(echo ${_report_packages_live})"
+Unit_Report "$(echo ${_report_aur_live})"
+
 case $MODE in
-    REPORT) # Unit_Report all
-        Unit_Report "${_report_packages_live}"
-        Unit_Report "${_report_aur_live}"
-        [[ -z ${PACKAGES_MISSING_IN_[LIVE]:-} ]] \
-        || _report_packages_missingin_live="\nSNAPSHOT OFFICIAL PACKAGES NOT INSTALLED ON LIVE SYSTEM: \n$(echo ${PACKAGES_MISSING_IN_[LIVE]})"
-        [[ -z ${AUR_MISSING_IN_[LIVE]:-} ]] \
-        || _report_aur_missingin_live="\nSNAPSHOT AUR PACKAGES NOT INSTALLED ON LIVE SYSTEM: \n${AUR_MISSING_IN_[LIVE]})"
-        [[ -z ${PACKAGES_MISSING_IN_[FILE]:-} ]] \
-        || _report_packages_missinging_file="\nOFFICIAL PACKAGES INSTALLED ON LIVE SYSTEM BUT NOT IN SNAPSHOT: \n$(echo ${PACKAGES_MISSING_IN_[FILE]})"
-        [[ -z ${AUR_MISSING_IN_[FILE]:-} ]] \
-        || _report_aur_missingin_file="\nAUR PACKAGES INSTALLED ON LIVE SYSTEM BUT NOT IN SNAPSHOT: \n$(echo ${AUR_MISSING_IN_[FILE]})"
-        ;;
-    SNAPSHOT) # Condition add all, conditional remove all
-        Unit_Report "$(echo ${_report_packages_live})"
-        Unit_Report "$(echo ${_report_aur_live})"
-#         local _snapshot_added
-#         local _snapshot_skipped
-        ASK_AUTO_SOURCE_=(
-        [LIST_VAR_NAME]=''
-        [LIST_VALUE]="${PACKAGES_MISSING_IN_[FILE]}"
-        [QUERY_STRING]='${_item} on system but not in snapshot. Add to snapshot?'
-        [ACTION_CMD]='PACKAGES_[FILE]="$(Set_Op_Union "${PACKAGES_[FILE]}" "${_item}")"'
-        [EXECUTED_CMD]='UI_Passive_Alert "Added"'
-        [SKIPPED_CMD]='UI_Passive_Alert "Skipped"'
-        [FAILED_CMD]='UI_Passive_Alert "Failed"'
-        [EXECUTED_LIST_CMD]='Unit_Report "ADDED TO SNAPSHOT LIST: ${_executed_list}"'
-        [SKIPPED_LIST_CMD]='Unit_Report "NOT ADDED TO SNAPSHOT LIST: ${_skipped_list}"'
-        [FAILED_LIST_CMD]='Unit_Report "FAILED TO ADD TO SNAPSHOT LIST: ${_failed_list}"'
-        [EXECUTED_RTN_NAME]=''
-        [SKIPPED_RTN_NAME]=''
-        [FAILED_RTN_NAME]=''
-        [FORCE_VALUE]='${FORCE}'
-        [DEFAULT_CHOICE]='false'
-        )
-        Ask_Auto_Action ASK_AUTO_SOURCE_
-        ASK_AUTO_SOURCE_=(
-        [LIST_VAR_NAME]=''
-        [LIST_VALUE]="${PACKAGES_MISSING_IN_[LIVE]}"
-        [QUERY_STRING]='${_item} in snapshot but not on system. Remove from snapshot?'
-        [ACTION_CMD]='PACKAGES_[FILE]="$(Set_Op_Difference "${PACKAGES_[FILE]}" "${_item}")"'
-        [EXECUTED_CMD]='UI_Passive_Alert "Added"'
-        [SKIPPED_CMD]='UI_Passive_Alert "Skipped"'
-        [FAILED_CMD]='UI_Passive_Alert "Failed"'
-        [EXECUTED_LIST_CMD]='Unit_Report "ADDED TO SNAPSHOT LIST: ${_executed_list}"'
-        [SKIPPED_LIST_CMD]='Unit_Report "NOT ADDED TO SNAPSHOT LIST: ${_skipped_list}"'
-        [FAILED_LIST_CMD]='Unit_Report "FAILED TO ADD TO SNAPSHOT LIST: ${_failed_list}"'
-        [EXECUTED_RTN_NAME]=''
-        [SKIPPED_RTN_NAME]=''
-        [FAILED_RTN_NAME]=''
-        [FORCE_VALUE]='${FORCE}'
-        [DEFAULT_CHOICE]='false'
-        )
-        Ask_Auto_Action ASK_AUTO_SOURCE_
-#         local _all=${FORCE:-}
-#         for _missing_package in ${PACKAGES_MISSING_IN_[FILE]}
-#         do
-#             local _install=
-#             if Is_True ${_all}; then
-#                 _install=true
-#             elif Query "${_missing_package} on system but not in snapshot. Add to snapshot" _all; then
-#                 _install=true
-#             fi
-#             if Is_True ${_install}
-#             then
-#                 _snapshot_added+="${_missing_package} "
-#             else
-#                 _snapshot_added_skipped+="${_missing_package} "
-#             fi
-#         done
-#         local _all=${FORCE:-}
-#         for _missing_package in ${PACKAGES_MISSING_IN_[LIVE]}
-#         do
-#             local _install=
-#             if Is_True ${_all}; then
-#                 _install=true
-#             elif Query "${_missing_package} in snapshot but not on system. Remove from snapshot" _all; then
-#                 _install=true
-#             fi
-#             if Is_True ${_install}
-#             then
-#                 _snapshot_removed+="${_missing_package} "
-#             else
-#                 _snapshot_removed_skipped+="${_missing_package} "
-#             fi
-#         done
-        #PACKAGES_[FILE]="$(Set_Op_Union "${PACKAGES_[FILE]}" "${_snapshot_added:-}")"
-        #PACKAGES_[FILE]="$(Set_Op_Difference "${PACKAGES_[FILE]}" "${_snapshot_removed:-}")"
-#         [[ -n "${_snapshot_added:-}${_snapshot_removed:-}" ]] && Unit_Report "\nSNAPSHOT PACKAGES CHANGED:"
-#         [[ -n "${_snapshot_added:-}" ]] && Unit_Report "ADDED TO SNAPSHOT LIST: $(echo ${_snapshot_added})"
-#         [[ -n "${_snapshot_removed:-}" ]] && Unit_Report "REMOVED FROM SNAPSHOT LIST: $(echo ${_snapshot_added})"
-#         [[ -n "${_snapshot_added_skipped:-}${_snapshot_removed_skipped:-}" ]] && Unit_Report "\nSNAPSHOT PACKAGES NOT CHANGED:"
-#         [[ -n "${_snapshot_added_skipped:-}" ]] && Unit_Report "NOT ADDED TO SNAPSHOT LIST: $(echo ${_snapshot_added_skipped})"
-#         [[ -n "${_snapshot_removed_skipped:-}" ]] && Unit_Report "NOT REMOVED FROM SNAPSHOT LIST: $(echo ${_snapshot_removed_skipped})"
-        
-        #echo "${OVERLAY_[FILE]}" >> $TMPDIR/$OVERLAY_[FILENAME]
+REPORT) # Unit_Report all
+    [[ -z ${PACKAGES_MISSING_IN_[LIVE]:-} ]] \
+    || _report_packages_missingin_live="\nSNAPSHOT OFFICIAL PACKAGES NOT INSTALLED ON LIVE SYSTEM: \n$(echo ${PACKAGES_MISSING_IN_[LIVE]})"
+    [[ -z ${AUR_MISSING_IN_[LIVE]:-} ]] \
+    || _report_aur_missingin_live="\nSNAPSHOT AUR PACKAGES NOT INSTALLED ON LIVE SYSTEM: \n${AUR_MISSING_IN_[LIVE]})"
+    [[ -z ${PACKAGES_MISSING_IN_[FILE]:-} ]] \
+    || _report_packages_missinging_file="\nOFFICIAL PACKAGES INSTALLED ON LIVE SYSTEM BUT NOT IN SNAPSHOT: \n$(echo ${PACKAGES_MISSING_IN_[FILE]})"
+    [[ -z ${AUR_MISSING_IN_[FILE]:-} ]] \
+    || _report_aur_missingin_file="\nAUR PACKAGES INSTALLED ON LIVE SYSTEM BUT NOT IN SNAPSHOT: \n$(echo ${AUR_MISSING_IN_[FILE]})"
+    ;;
+SNAPSHOT) # Condition add all, conditional remove all
+    ASK_AUTO_SOURCE_=(
+    [LIST_VAR_NAME]=''
+    [LIST_VALUE]="${PACKAGES_MISSING_IN_[FILE]}"
+    [QUERY_STRING]='${_item} on system but not in snapshot. Add to snapshot?'
+    [ACTION_CMD]='PACKAGES_[FILE]="$(Set_Op_Union "${PACKAGES_[FILE]}" "${_item}")"'
+    [EXECUTED_CMD]='UI_Passive_Alert "Added"'
+    [SKIPPED_CMD]='UI_Passive_Alert "Skipped"'
+    [FAILED_CMD]='UI_Passive_Alert "Failed"'
+    [EXECUTED_LIST_CMD]='Unit_Report "ADDED TO SNAPSHOT LIST: ${_executed_list}"'
+    [SKIPPED_LIST_CMD]='Unit_Report "NOT ADDED TO SNAPSHOT LIST: ${_skipped_list}"'
+    [FAILED_LIST_CMD]='Unit_Report "FAILED TO ADD TO SNAPSHOT LIST: ${_failed_list}"'
+    [EXECUTED_RTN_NAME]=''
+    [SKIPPED_RTN_NAME]=''
+    [FAILED_RTN_NAME]=''
+    [FORCE_VALUE]='${FORCE}'
+    [DEFAULT_CHOICE]='true'
+    )
+    Ask_Auto_Action ASK_AUTO_SOURCE_
+    ASK_AUTO_SOURCE_=(
+    [LIST_VAR_NAME]=''
+    [LIST_VALUE]="${PACKAGES_MISSING_IN_[LIVE]}"
+    [QUERY_STRING]='${_item} in snapshot but not on system. Remove from snapshot?'
+    [ACTION_CMD]='PACKAGES_[FILE]="$(Set_Op_Difference "${PACKAGES_[FILE]}" "${_item}")"'
+    [EXECUTED_CMD]='UI_Passive_Alert "Added"'
+    [SKIPPED_CMD]='UI_Passive_Alert "Skipped"'
+    [FAILED_CMD]='UI_Passive_Alert "Failed"'
+    [EXECUTED_LIST_CMD]='Unit_Report "ADDED TO SNAPSHOT LIST: ${_executed_list}"'
+    [SKIPPED_LIST_CMD]='Unit_Report "NOT ADDED TO SNAPSHOT LIST: ${_skipped_list}"'
+    [FAILED_LIST_CMD]='Unit_Report "FAILED TO ADD TO SNAPSHOT LIST: ${_failed_list}"'
+    [EXECUTED_RTN_NAME]=''
+    [SKIPPED_RTN_NAME]=''
+    [FAILED_RTN_NAME]=''
+    [FORCE_VALUE]='${FORCE}'
+    [DEFAULT_CHOICE]='true'
+    )
+    Ask_Auto_Action ASK_AUTO_SOURCE_
+    ASK_AUTO_SOURCE_=(
+    [LIST_VAR_NAME]=''
+    [LIST_VALUE]="${AUR_MISSING_IN_[FILE]}"
+    [QUERY_STRING]='${_item} on system but not in snapshot. Add to snapshot?'
+    [ACTION_CMD]='AUR_[FILE]="$(Set_Op_Union "${AUR_[FILE]}" "${_item}")"'
+    [EXECUTED_CMD]='UI_Passive_Alert "Added"'
+    [SKIPPED_CMD]='UI_Passive_Alert "Skipped"'
+    [FAILED_CMD]='UI_Passive_Alert "Failed"'
+    [EXECUTED_LIST_CMD]='Unit_Report "ADDED TO SNAPSHOT AUR LIST: ${_executed_list}"'
+    [SKIPPED_LIST_CMD]='Unit_Report "NOT ADDED TO SNAPSHOT AUR LIST: ${_skipped_list}"'
+    [FAILED_LIST_CMD]='Unit_Report "FAILED TO ADD TO SNAPSHOT AUR LIST: ${_failed_list}"'
+    [EXECUTED_RTN_NAME]=''
+    [SKIPPED_RTN_NAME]=''
+    [FAILED_RTN_NAME]=''
+    [FORCE_VALUE]='${FORCE}'
+    [DEFAULT_CHOICE]='true'
+    )
+    Ask_Auto_Action ASK_AUTO_SOURCE_
+    ASK_AUTO_SOURCE_=(
+    [LIST_VAR_NAME]=''
+    [LIST_VALUE]="${AUR_MISSING_IN_[LIVE]}"
+    [QUERY_STRING]='${_item} in snapshot but not on system. Remove from snapshot?'
+    [ACTION_CMD]='AUR_[FILE]="$(Set_Op_Difference "${AUR_[FILE]}" "${_item}")"'
+    [EXECUTED_CMD]='UI_Passive_Alert "Added"'
+    [SKIPPED_CMD]='UI_Passive_Alert "Skipped"'
+    [FAILED_CMD]='UI_Passive_Alert "Failed"'
+    [EXECUTED_LIST_CMD]='Unit_Report "ADDED TO SNAPSHOT AUR LIST: ${_executed_list}"'
+    [SKIPPED_LIST_CMD]='Unit_Report "NOT ADDED TO SNAPSHOT AUR LIST: ${_skipped_list}"'
+    [FAILED_LIST_CMD]='Unit_Report "FAILED TO ADD TO SNAPSHOT AUR LIST: ${_failed_list}"'
+    [EXECUTED_RTN_NAME]=''
+    [SKIPPED_RTN_NAME]=''
+    [FAILED_RTN_NAME]=''
+    [FORCE_VALUE]='${FORCE}'
+    [DEFAULT_CHOICE]='true'
+    )
+    Ask_Auto_Action ASK_AUTO_SOURCE_
 
-#         Debug "$(echo ${PACKAGES_[FILE]})"
-#         Debug "$(echo ${AUR_[FILE]})"
+    # WRITE TO FILES
+    echo ${PACKAGES_[FILE]} >> $TMPDIR/${PACKAGES_[FILENAME]}
+    echo ${AUR_[FILE]} >> $TMPDIR/${AUR_[FILENAME]}
+    local _filename
+    for _filename in ${PACKAGES_[FILENAME]} ${AUR_[FILENAME]}
+    do install -CD --backup=${BACKUP_MODE} -S${BACKUP_SUFFIX} "$TMPDIR/$_filename" "$SNAPSHOT_DIRPATH/$_filename"; done
 
-        # WRITE TO FILES
-        echo ${PACKAGES_[FILE]} >> $TMPDIR/${PACKAGES_[FILENAME]}
-        echo ${AUR_[FILE]} >> $TMPDIR/${AUR_[FILENAME]}
-        local _filename
-        for _filename in ${PACKAGES_[FILENAME]} ${AUR_[FILENAME]}
-        do install -CD --backup=${BACKUP_MODE} -S${BACKUP_SUFFIX} "$TMPDIR/$_filename" "$SNAPSHOT_DIRPATH/$_filename"; done
-
-        ;;
-    SYSTEM) 
-        Unit_Report "$(echo ${_report_packages_live})"
-        Unit_Report "$(echo ${_report_aur_live})"
-        ASK_AUTO_SOURCE_=(
-        [LIST_VAR_NAME]=''
-        [LIST_VALUE]="${PACKAGES_MISSING_IN_[FILE]}"
-        [QUERY_STRING]='${_item} on system but not in snapshot. Uninstall (recursive + removes unneeded)?'
-        [ACTION_CMD]='Install_Package "${_item}" && PACKAGES_[LIVE]="$(Set_Op_Union "${PACKAGES_[LIVE]}" "${_system_installed}")"'
-        [EXECUTED_CMD]='UI_Passive_Alert "Installed"'
-        [SKIPPED_CMD]='UI_Passive_Alert "Skipped"'
-        [FAILED_CMD]='UI_Passive_Alert "Failed"'
-        [EXECUTED_LIST_CMD]='Unit_Report "INSTALLED TO SYSTEM: ${_executed_list}"'
-        [SKIPPED_LIST_CMD]='Unit_Report "NOT INSTALLED TO SYSTEM: ${_skipped_list}"'
-        [FAILED_LIST_CMD]='Unit_Report "FAILED TO INSTALL TO SYSTEM: ${_failed_list}"'
-        [EXECUTED_RTN_NAME]=''
-        [SKIPPED_RTN_NAME]=''
-        [FAILED_RTN_NAME]=''
-        [FORCE_VALUE]='${FORCE}'
-        [DEFAULT_CHOICE]='false'
-        )
-        Ask_Auto_Action ASK_AUTO_SOURCE_
-        ASK_AUTO_SOURCE_=(
-        [LIST_VAR_NAME]=''
-        [LIST_VALUE]="${PACKAGES_MISSING_IN_[LIVE]}"
-        [QUERY_STRING]='${_item} in snapshot but not on system. Install?'
-        [ACTION_CMD]='Uninstall_Package "${_item}" && PACKAGES_[LIVE]="$(Set_Op_Difference "${PACKAGES_[LIVE]}" "${_system_uninstalled}")"'
-        [EXECUTED_CMD]='UI_Passive_Alert "Installed"'
-        [SKIPPED_CMD]='UI_Passive_Alert "Skipped"'
-        [FAILED_CMD]='UI_Passive_Alert "Failed"'
-        [EXECUTED_LIST_CMD]='Unit_Report "UNINSTALLED FROM SYSTEM: ${_executed_list}"'
-        [SKIPPED_LIST_CMD]='Unit_Report "NOT UNINSTALLED FROM SYSTEM: ${_skipped_list}"'
-        [FAILED_LIST_CMD]='Unit_Report "FAILED TO UNINSTALL FROM SYSTEM: ${_failed_list}"'
-        [EXECUTED_RTN_NAME]=''
-        [SKIPPED_RTN_NAME]=''
-        [FAILED_RTN_NAME]=''
-        [FORCE_VALUE]='${FORCE}'
-        [DEFAULT_CHOICE]='false'
-        )
-        Ask_Auto_Action ASK_AUTO_SOURCE_
-#         local _system_added
-#         local _system_skipped
-#         local _all=${FORCE:-}
-#         for _missing_package in ${PACKAGES_MISSING_IN_[FILE]}
-#         do
-#             local _install=
-#             if Is_True ${_all}; then
-#                 _install=true
-#             elif Query "${_missing_package} on system but not in snapshot. Uninstall (recursive + removes unneeded)" _all; then
-#                 _install=true
-#             fi
-#             if Is_True ${_install}
-#             then
-#                 Install_Package "${_package}" \
-#                 && _system_installed+="${_package} " \
-#                 || _system_install_failed+="${_package} "
-#             else
-#                 _system_install_skipped+="${_missing_package} "
-#             fi
-#         done
-#         local _all=${FORCE:-}
-#         for _missing_package in ${PACKAGES_MISSING_IN_[LIVE]}
-#         do
-#             local _install=
-#             if Is_True ${_all}; then
-#                 _install=true
-#             elif Query "${_missing_package} in snapshot but not on system. Install" _all; then
-#                 _install=true
-#             fi
-#             if Is_True ${_install}
-#             then
-#                 Uninstall_Package "${_package}" \
-#                 && _system_uninstalled+="${_package} " \
-#                 || _system_uninstall_failed+="${_package} "
-#             else
-#                 _system_removed_skipped+="${_missing_package} "
-#             fi
-#         done
-#         PACKAGES_[LIVE]="$(Set_Op_Union "${PACKAGES_[LIVE]}" "${_system_installed}")"
-#         PACKAGES_[LIVE]="$(Set_Op_Difference "${PACKAGES_[LIVE]}" "${_system_uninstalled}")"
-#         [[ -n "${_system_installed:-}${_system_uninstalled:-}" ]] && Unit_Report "\nSYSTEM PACKAGES CHANGED:"
-#         [[ -n "${_system_installed}" ]] && Unit_Report "INSTALLED: ${_system_installed}"
-#         [[ -n "${_system_uninstalled}" ]] && Unit_Report "UNINSTALLED: ${_system_uninstalled}"
-#         [[ -n "${_system_install_skipped}${_system_uninstall_skipped}" ]] && Unit_Report "\nSYSTEM PACKAGES NOT CHANGED:"
-#         [[ -n "${_system_install_skipped}" ]] && Unit_Report "INSTALL SKIPPED: ${_system_install_skipped}"
-#         [[ -n "${_system_uninstall_skipped}" ]] && Unit_Report "REMOVAL SKIPPED: ${_system_uninstall_skipped}"
-        ;;
+    ;;
+SYSTEM)
+    ASK_AUTO_SOURCE_=(
+    [LIST_VAR_NAME]=''
+    [LIST_VALUE]="${PACKAGES_MISSING_IN_[FILE]}"
+    [QUERY_STRING]='${_item} on system but not in snapshot. Uninstall (recursive + removes unneeded)?'
+    [ACTION_CMD]='Install_Package "${_item}" && PACKAGES_[LIVE]="$(Set_Op_Union "${PACKAGES_[LIVE]}" "${_item}")"'
+    [EXECUTED_CMD]='UI_Passive_Alert "Installed"'
+    [SKIPPED_CMD]='UI_Passive_Alert "Skipped"'
+    [FAILED_CMD]='UI_Passive_Alert "Failed"'
+    [EXECUTED_LIST_CMD]='Unit_Report "INSTALLED TO SYSTEM: ${_executed_list}"'
+    [SKIPPED_LIST_CMD]='Unit_Report "NOT INSTALLED TO SYSTEM: ${_skipped_list}"'
+    [FAILED_LIST_CMD]='Unit_Report "FAILED TO INSTALL TO SYSTEM: ${_failed_list}"'
+    [EXECUTED_RTN_NAME]=''
+    [SKIPPED_RTN_NAME]=''
+    [FAILED_RTN_NAME]=''
+    [FORCE_VALUE]='${FORCE}'
+    [DEFAULT_CHOICE]='${FULL_FORCE}'
+    )
+    Ask_Auto_Action ASK_AUTO_SOURCE_
+    ASK_AUTO_SOURCE_=(
+    [LIST_VAR_NAME]=''
+    [LIST_VALUE]="${PACKAGES_MISSING_IN_[LIVE]}"
+    [QUERY_STRING]='${_item} in snapshot but not on system. Install?'
+    [ACTION_CMD]='Uninstall_Package "${_item}" && PACKAGES_[LIVE]="$(Set_Op_Difference "${PACKAGES_[LIVE]}" "${_item}")"'
+    [EXECUTED_CMD]='UI_Passive_Alert "Installed"'
+    [SKIPPED_CMD]='UI_Passive_Alert "Skipped"'
+    [FAILED_CMD]='UI_Passive_Alert "Failed"'
+    [EXECUTED_LIST_CMD]='Unit_Report "UNINSTALLED FROM SYSTEM: ${_executed_list}"'
+    [SKIPPED_LIST_CMD]='Unit_Report "NOT UNINSTALLED FROM SYSTEM: ${_skipped_list}"'
+    [FAILED_LIST_CMD]='Unit_Report "FAILED TO UNINSTALL FROM SYSTEM: ${_failed_list}"'
+    [EXECUTED_RTN_NAME]=''
+    [SKIPPED_RTN_NAME]=''
+    [FAILED_RTN_NAME]=''
+    [FORCE_VALUE]='${FORCE}'
+    [DEFAULT_CHOICE]='true'
+    )
+    Ask_Auto_Action ASK_AUTO_SOURCE_
+    ASK_AUTO_SOURCE_=(
+    [LIST_VAR_NAME]=''
+    [LIST_VALUE]="${AUR_MISSING_IN_[FILE]}"
+    [QUERY_STRING]='${_item} on system but not in snapshot. Uninstall (recursive + removes unneeded)?'
+    [ACTION_CMD]='Uninstall_Package "${_item}" && AUR_[LIVE]="$(Set_Op_Difference "${AUR_[LIVE]}" "${_item}")"'
+    [EXECUTED_CMD]='UI_Passive_Alert "Installed"'
+    [SKIPPED_CMD]='UI_Passive_Alert "Skipped"'
+    [FAILED_CMD]='UI_Passive_Alert "Failed"'
+    [EXECUTED_LIST_CMD]='Unit_Report "UNINSTALLED FROM SYSTEM: ${_executed_list}"'
+    [SKIPPED_LIST_CMD]='Unit_Report "NOT UNINSTALLED FROM SYSTEM: ${_skipped_list}"'
+    [FAILED_LIST_CMD]='Unit_Report "FAILED TO UNINSTALL FROM SYSTEM: ${_failed_list}"'
+    [EXECUTED_RTN_NAME]=''
+    [SKIPPED_RTN_NAME]=''
+    [FAILED_RTN_NAME]=''
+    [FORCE_VALUE]='${FORCE}'
+    [DEFAULT_CHOICE]='${FULL_FORCE}'
+    )
+    Ask_Auto_Action ASK_AUTO_SOURCE_
+    ASK_AUTO_SOURCE_=(
+    [LIST_VAR_NAME]=''
+    [LIST_VALUE]="${AUR_MISSING_IN_[LIVE]}"
+    [QUERY_STRING]='${_item} in snapshot but not on system. Install?'
+    [ACTION_CMD]='Install_AUR "${_item}" && AUR_[LIVE]="$(Set_Op_Union "${AUR_[LIVE]}" "${_item}")"'
+    [EXECUTED_CMD]='UI_Passive_Alert "Installed"'
+    [SKIPPED_CMD]='UI_Passive_Alert "Skipped"'
+    [FAILED_CMD]='UI_Passive_Alert "Failed"'
+    [EXECUTED_LIST_CMD]='Unit_Report "INSTALLED TO SYSTEM: ${_executed_list}"'
+    [SKIPPED_LIST_CMD]='Unit_Report "NOT INSTALLED TO SYSTEM: ${_skipped_list}"'
+    [FAILED_LIST_CMD]='Unit_Report "FAILED TO INSTALL TO SYSTEM: ${_failed_list}"'
+    [EXECUTED_RTN_NAME]=''
+    [SKIPPED_RTN_NAME]=''
+    [FAILED_RTN_NAME]=''
+    [FORCE_VALUE]='${FORCE}'
+    [DEFAULT_CHOICE]='true'
+    )
+    Ask_Auto_Action ASK_AUTO_SOURCE_
+    ;;
 esac
 
 }
@@ -822,6 +787,7 @@ UNIT_Overlay ()
 # NO-SYS: System File Missing
 # NO-OVR: Overlay File Missing
 # NO-ALL: Overlay and System File Missing
+
 OVERLAY_ACTION_GOOD_=(
 [ID]="GOOD"
 [REPORT]="Up to date."
@@ -887,12 +853,61 @@ OVERLAY_ACTION_UNKNOWN_=(
 [SNAPSHOT_UPDATE_COMMAND]=""
 )
 
-if [[ -n "${OVERLAY_[FILE]}" ]]
+if [[ -z "${OVERLAY_[FILE]}" ]]
 then
+    UI_Passive_Alert "Skipping overlay files check; no overlay file list in ${OVERLAY_[FILEPATH]}."
+else
     UI_Passive_Alert "\nChecking overlay files list in ${OVERLAY_[FILEPATH]}"
     Unit_Report "\nOVERLAY FILES (${OVERLAY_[FILEPATH]})"
     DEFAULT_ATTRIBS="644 root root"
     _IFS=$IFS; IFS=$'\n'
+
+
+    # either overlays match or they don't
+    # report: report if they match or not
+    # update snapshot: copy over
+    # update system: copy over
+    #
+    # make one or several lists (current, different, missing)
+    # and ask-auto-action through them
+
+
+
+    ASK_AUTO_SOURCE_=(
+    [LIST_VAR_NAME]=''
+    [LIST_VALUE]="${OVERLAY_[FILE]}"
+    [QUERY_TEST]=''
+    [QUERY_STRING]='${_item} on system but not in snapshot. Uninstall (recursive + removes unneeded)?'
+    [ACTION_CMD]='Uninstall_Package "${_item}" && AUR_[LIVE]="$(Set_Op_Difference "${AUR_[LIVE]}" "${_item}")"'
+    [EXECUTED_CMD]='UI_Passive_Alert "Installed"'
+    [SKIPPED_CMD]='UI_Passive_Alert "Skipped"'
+    [FAILED_CMD]='UI_Passive_Alert "Failed"'
+    [EXECUTED_LIST_CMD]='Unit_Report "UNINSTALLED FROM SYSTEM: ${_executed_list}"'
+    [SKIPPED_LIST_CMD]='Unit_Report "NOT UNINSTALLED FROM SYSTEM: ${_skipped_list}"'
+    [FAILED_LIST_CMD]='Unit_Report "FAILED TO UNINSTALL FROM SYSTEM: ${_failed_list}"'
+    [EXECUTED_RTN_NAME]=''
+    [SKIPPED_RTN_NAME]=''
+    [FAILED_RTN_NAME]=''
+    [FORCE_VALUE]='${FORCE}'
+    [DEFAULT_CHOICE]='false'
+    )
+    #Ask_Auto_Action ASK_AUTO_SOURCE_
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     local _line
     for _line in ${OVERLAY_[FILE]}
     do
@@ -1034,8 +1049,6 @@ Debug
             Unit_Report "${_state_line}"
         fi
     done
-else
-    UI_Passive_Alert "Skipping overlay files check; no overlay file list in ${OVERLAY_[FILEPATH]}."
 fi
 
 

@@ -1,7 +1,69 @@
 #!/bin/bash
 
+Debug () { echo -e ">>> DEBUG: EXECUTING ${FUNCNAME[1]} AT LINE ${BASH_LINENO[0]}${*:+ >>> }${*:-}"; }
+Is_True () { case $(Lower_Case ${1:-}) in true|yes|1|y) return 0 ;; *) return 1 ;; esac; }
+Is_False () { case $(Lower_Case ${1:-}) in false|no|0|n) return 0 ;; *) return 1 ;; esac; }
+Is_Array () { [[ -n ${1:-} ]] && declare | egrep -q "^${1}=\(" || return 1; }
+Upper_Case () { echo -n "$*" | tr '[:lower:]' '[:upper:]'; }
+Lower_Case () { echo -n "$*" | tr '[:upper:]' '[:lower:]'; }
+
+Fail_Critically () { echo -e "\nCRITICAL FAILURE. Reported by ${FUNCNAME[1]}:\n$(echo ${1})"; exit 1; }
+Fail_Noncritically () { echo -e "\nNONCRITICAL FAILURE. Reported by ${FUNCNAME[1]}:\n$(echo ${1})"; }
+
+regen () { echo "TODO: add mkinitcpio, grub regen here"; }
 Install_Package () { sudo pacman -Sq --noconfirm "${1}"; }
 Uninstall_Package () { sudo pacman -Rsu --noconfirm "${1}"; }
+
+# Read a file's contents, stripping comment lines
+Read_File_Drop_Comments () { [[ -e ${1} ]] && cat $1 | egrep "^\s*[^#]" || Unit_Report "FILE NOT PRESENT: ${1}"; } #return 0
+
+UI_Passive_Alert () { eval "local _alert=\"${1:-}\""; [[ -n ${_alert:-} ]] && echo -e "${_alert}"; }
+UI_Incremental_Alert () { [[ -n ${1:-} ]] && echo -ne "${1}" || echo; }
+UI_Passive_Warning () { echo -e "\nWARNING"; eval "echo -e \"${*}\""; }
+UI_Query_Warning () { echo -e "\nWARNING"; eval "echo -e \"${*}\""; Query "Proceed?"; }
+
+# takes two arguments
+# 1: Prompt string to which is added (y/n)
+# 2: name of temporary global to set to true if response is for all
+Query ()
+{
+    eval "local _alert=\"${1}\""
+    echo -en "${_alert}"
+    while true
+    do
+        [[ -n ${2:-} ]] \
+            && local _prompt=" (y/n for this; Y/N for all remaining) " \
+            || local _prompt=" (y/n) "
+        read -p "${_prompt}" response
+        case $response in
+            y*) return 0 ;;
+            Y*) [[ -n ${2:-} ]] && eval ${2}=true; return 0 ;;
+            n*) return 1 ;;
+            N*) [[ -n ${2:-} ]] && eval ${2}=true; return 1 ;;
+        esac
+    done
+}
+
+Unit_Report ()
+{
+    # find parent UNIT_ function
+    _message="$(echo $*)"
+    local _category
+    for _category in "${FUNCNAME[@]}"
+    do
+        [[ $(expr "${_category}" : "UNIT_") > 0 ]] && break
+    done
+
+    # add to list of categories if this is a new REPORT_ value
+    if [[ -z ${REPORT_[${_category#UNIT_}]:-} ]]
+    then
+        REPORT_SEQUENCE_[$((${#REPORT_SEQUENCE_[@]}+1))]=${_category#UNIT_}
+    fi
+
+    # add report string to report category string
+    #REPORT_[${_category#UNIT_}]+="$(echo ${_message} | fmt -uw ${COLUMNS:-72} )\n";
+    REPORT_[${_category#UNIT_}]+="$(echo ${_message})\n";
+}
 
 # Install_Package_From_AUR <package_name>
 # Syncs dependencies from official repositories with makepkg
@@ -82,76 +144,6 @@ Execute_With_Failsafe_Rollback ()
 
     trap - INT TERM EXIT
     eval "${_previous_traps}"
-}
-
-Debug () { echo -e ">>> DEBUG: EXECUTING ${FUNCNAME[1]} AT LINE ${BASH_LINENO[0]}${*:+ >>> }${*:-}"; }
-Is_True () { case $(Lower_Case ${1:-}) in true|yes|1|y) return 0 ;; *) return 1 ;; esac; }
-Is_False () { case $(Lower_Case ${1:-}) in false|no|0|n) return 0 ;; *) return 1 ;; esac; }
-Upper_Case () { echo -n "$*" | tr '[:lower:]' '[:upper:]'; }
-Lower_Case () { echo -n "$*" | tr '[:upper:]' '[:lower:]'; }
-
-compare () { echo "$(comm -23 <(echo "${1}" | sort -u ) <(echo "${2}" | sort -u ))"; }
-common () { echo "$(comm -12 <(echo "${1}" | sort -u ) <(echo "${2}" | sort -u ))"; }
-
-log () { echo "$*"; logger "$CMD: $*"; }
-progress () { echo "=> $(truc $*)..."; }
-
-readoption () { n="option_${1#option_}"; local opt; for opt in $(eval echo -n \${!$n[@]}); do eval $(truc $opt)=\"\${$n[$opt]}\"; done; }
-readfile_nocomments () { [[ -e $1 ]] && cat $1 | egrep "^\s*[^#]"; }
-list_file () { echo $(cat $1) | tr -s " " "\n"; }
-regen () { echo "TODO: add mkinitcpio, grub regen here"; }
-
-# Read a file's contents, stripping comment lines
-Read_File_Drop_Comments ()
-{
-    [[ -e ${1} ]] && cat $1 | egrep "^\s*[^#]" || Unit_Report "FILE NOT PRESENT: ${1}"
-    #return 0
-}
-
-Unit_Report ()
-{
-    # find parent UNIT_ function
-    _message="$(echo $*)"
-    local _category
-    for _category in "${FUNCNAME[@]}"
-    do
-        [[ $(expr "${_category}" : "UNIT_") > 0 ]] && break
-    done
-
-    # add to list of categories if this is a new REPORT_ value
-    if [[ -z ${REPORT_[${_category#UNIT_}]:-} ]]
-    then
-        REPORT_SEQUENCE_[$((${#REPORT_SEQUENCE_[@]}+1))]=${_category#UNIT_}
-    fi
-
-    # add report string to report category string
-    #REPORT_[${_category#UNIT_}]+="$(echo ${_message} | fmt -uw ${COLUMNS:-72} )\n";
-    REPORT_[${_category#UNIT_}]+="$(echo ${_message})\n";
-}
-
-UI_Passive_Alert ()
-{
-    eval "local _alert=\"${1:-}\""
-    [[ -n ${_alert:-} ]] && echo -e "${_alert}"
-}
-
-UI_Incremental_Alert ()
-{
-    #eval "local _alert=\"\\n${1}\""
-    [[ -n ${1:-} ]] && echo -ne "${1}" || echo
-}
-
-UI_Passive_Warning ()
-{
-    echo -e "\nWARNING"
-    eval "echo -e \"${*}\""
-}
-
-UI_Query_Warning ()
-{
-    echo -e "\nWARNING"
-    eval "echo -e \"${*}\""
-    Query "Proceed?"
 }
 
 Options_Initialize ()
@@ -259,22 +251,6 @@ Usage ()
     UI_Passive_Alert "${USAGE_SUMMARY}"
 }
 
-Fail_Critically ()
-{
-    echo -e "\nCRITICAL FAILURE. Reported by ${FUNCNAME[1]}:\n$(echo ${1})"
-    exit 1
-}
-
-Fail_Noncritically ()
-{
-    echo -e "\nNONCRITICAL FAILURE. Reported by ${FUNCNAME[1]}:\n$(echo ${1})"; 
-}
-
-Is_Array ()
-{
-    [[ -n ${1:-} ]] && declare | egrep -q "^${1}=\(" || return 1
-}
-
 _Set_Op_Precheck ()
 {
     if Is_Array ${1:-} && Is_Array ${2:-} && [[ -n ${3:-} ]]
@@ -317,20 +293,20 @@ Set_Op_Difference ()
 
 # Given a potentially dirty input value, clean it up and output as 
 # a one-item-per-line list (assumes items are separated by spaces)
-Normalize_List ()
-{
-    local _input _line
-    if [[ -n ${1:-} ]]
-    then
-        _input="${1}"
-    else
-        while read _line
-        do
-            _input+="${_line} "
-        done
-    fi
-    echo ${_input} | tr -s " " "\n" | sort -u
-}
+#Normalize_List ()
+#{
+#    local _input _line
+#    if [[ -n ${1:-} ]]
+#    then
+#        _input="${1}"
+#    else
+#        while read _line
+#        do
+#            _input+="${_line} "
+#        done
+#    fi
+#    echo ${_input} | tr -s " " "\n" | sort -u
+#}
 
 # Data_To_Sorted_Array input_var_name output_var_name
 # Can take either: two input values (both variable *names*), input/ouput
@@ -451,26 +427,4 @@ if  [[ -n "${!_output_list_name:-}" ]]; then
     eval _${_output}_list_command
 fi
 done
-}
-
-# takes two arguments
-# 1: Prompt string to which is added (y/n)
-# 2: name of temporary global to set to true if response is for all
-Query ()
-{
-    eval "local _alert=\"${1}\""
-    echo -en "${_alert}"
-    while true
-    do
-        [[ -n ${2:-} ]] \
-            && local _prompt=" (y/n for this; Y/N for all remaining) " \
-            || local _prompt=" (y/n) "
-        read -p "${_prompt}" response
-        case $response in
-            y*) return 0 ;;
-            Y*) [[ -n ${2:-} ]] && eval ${2}=true; return 0 ;;
-            n*) return 1 ;;
-            N*) [[ -n ${2:-} ]] && eval ${2}=true; return 1 ;;
-        esac
-    done
 }
