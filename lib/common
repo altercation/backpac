@@ -1,8 +1,12 @@
 #!/bin/bash
 
 Debug () { echo -e ">>> DEBUG: EXECUTING ${FUNCNAME[1]} AT LINE ${BASH_LINENO[0]}${*:+ >>> }${*:-}"; }
+
+#
 Is_True () { case $(Lower_Case ${1:-}) in true|yes|1|y) return 0 ;; *) return 1 ;; esac; }
 Is_False () { case $(Lower_Case ${1:-}) in false|no|0|n) return 0 ;; *) return 1 ;; esac; }
+
+# takes variable name to check
 Is_Array () { [[ -n ${1:-} ]] && declare | egrep -q "^${1}=\(" || return 1; }
 Upper_Case () { echo -n "$*" | tr '[:lower:]' '[:upper:]'; }
 Lower_Case () { echo -n "$*" | tr '[:upper:]' '[:lower:]'; }
@@ -15,7 +19,45 @@ Install_Package () { sudo pacman -Sq --noconfirm "${1}"; }
 Uninstall_Package () { sudo pacman -Rsu --noconfirm "${1}"; }
 
 # Read a file's contents, stripping comment lines
-Read_File_Drop_Comments () { [[ -e ${1} ]] && cat $1 | egrep "^\s*[^#]" || Unit_Report "FILE NOT PRESENT: ${1}"; } #return 0
+Read_File_Drop_Comments () { [[ -e ${1} ]] && egrep "^\s*[^#]" "${1}" || Unit_Report "FILE NOT PRESENT: ${1}"; } #return 0
+
+# Read file lines to array
+# Takes a path and an array variable name
+Read_File_Lines_To_Array ()
+{
+    local _filepath="${1}"
+    local _arrayname="${2}"
+    [[ ! -e "${_filepath}" ]] && return 1
+    declare -ag ${_arrayname}
+    local _line
+    local _line_num=0
+    while read -r _line
+    do
+        if echo "$_line" | egrep -q "^\s*[^#]"
+        then
+            OVERLAY_FILE_ARRAY[$_line_num]="$_line"
+            let "_line_num+=1"
+        fi
+    done < "${_filepath}"
+}
+Array_To_Report ()
+{
+    local _arrayname="${1}"
+    local _line
+    local _line_num=0
+    while true
+    do
+        eval [[ \$_line_num == \${#$_arrayname[@]} ]] && break
+        #eval echo "\${$_arrayname[$_line_num]}" | sed "s/\\/\\\\/g"
+        eval _line="\${$_arrayname[$_line_num]}"
+        echo "${_line}\n"
+        let "_line_num+=1"
+    done
+}
+
+# \d011 is vertical tab, not explicitly disallowed by posix but very, very unlikely
+Swap_Out_Escaped_Spaces () { [[ -n ${*:-} ]] && ( echo -n "${*}" | sed 's/\\ /\d011/g'; ) || return 0; }
+Swap_In_Escaped_Spaces () { [[ -n ${*:-} ]] && ( echo -n "${*}" | sed 's/\d011/\\ /g'; ) || return 0; }
 
 UI_Passive_Alert () { eval "local _alert=\"${1:-}\""; [[ -n ${_alert:-} ]] && echo -e "${_alert}"; }
 UI_Incremental_Alert () { [[ -n ${1:-} ]] && echo -ne "${1}" || echo; }
@@ -376,16 +418,17 @@ local _executed_list=
 local _failed_list=
 local _skipped_list=
 
-eval "local _list_var_name=\"\${$_source_set[LIST_VAR_NAME]:-}\""
+eval local _list_var_name=\"\${$_source_set[LIST_VAR_NAME]:-}\"
 if [[ -n ${_list_var_name:-} ]]
 then
-    eval "local _list=\"\$(echo \${!_list_var_name} | Normalize_List)\""
+    local _list=\"\$\(echo \${$_list_var_name} \| Normalize_To_List\)\"
 else
-    eval "local _list=\"\$(echo \${$_source_set[LIST_VALUE]} | Normalize_List)\""
+    #eval eval local _list=\$\(echo \${$_source_set[LIST_VALUE]} \| Normalize_To_List\)
+    eval local _list=\$\(echo \${$_source_set[LIST_VALUE]} \| Normalize_To_List\)
 fi
-eval "local _query_string=\"\${$_source_set[QUERY_STRING]}\""
-eval "local _force=\"\${$_source_set[FORCE_VALUE]}\""
-eval "local _default_choice=\"\${$_source_set[DEFAULT_CHOICE]}\""
+eval local _query_string=\"\${$_source_set[QUERY_STRING]}\"
+eval eval local _force=\"\${$_source_set[FORCE_VALUE]}\"
+eval local _default_choice=\"\${$_source_set[DEFAULT_CHOICE]}\"
 _action_command   () { eval eval \${$_source_set[ACTION_CMD]}; }
 _executed_command () { eval eval \${$_source_set[EXECUTED_CMD]}; }
 _skipped_command  () { eval eval \${$_source_set[SKIPPED_CMD]}; }
@@ -393,9 +436,9 @@ _failed_command   () { eval eval \${$_source_set[FAILED_CMD]}; }
 _executed_list_command () { eval eval \${$_source_set[EXECUTED_LIST_CMD]}; }
 _skipped_list_command  () { eval eval \${$_source_set[SKIPPED_LIST_CMD]}; }
 _failed_list_command   () { eval eval \${$_source_set[FAILED_LIST_CMD]}; }
-eval "local _skipped_rtn_name=\"\${$_source_set[SKIPPED_RTN_NAME]:-}\""
-eval "local _executed_rtn_name=\"\${$_source_set[EXECUTED_RTN_NAME]:-}\""
-eval "local _failed_rtn_name=\"\${$_source_set[FAILED_RTN_NAME]:-}\""
+eval eval "local _skipped_rtn_name=\"\${$_source_set[SKIPPED_RTN_NAME]:-}\""
+eval eval "local _executed_rtn_name=\"\${$_source_set[EXECUTED_RTN_NAME]:-}\""
+eval eval "local _failed_rtn_name=\"\${$_source_set[FAILED_RTN_NAME]:-}\""
 
 Is_True ${_force} && _choice=${_default_choice} || _choice=
 for _item in $_list

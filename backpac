@@ -3,6 +3,12 @@
 TestFunc ()
 {
 return
+testval=(a b c 'd\d' eee ff g)
+Array_To_Report testval
+exit
+return
+Debug "NO EXECUTE"
+exit
 }
 
 # ----------------------------------------------------------------------
@@ -53,6 +59,10 @@ LIBS_DIRPATH="$(dirname $0)/lib" # TODO: remove this
 CMDLINE_OPTIONS="${@}" # global so we can use in functions easily
 BACKUP_SUFFIX=".${SCRIPTNAME}" # cf man install
 DEFAULT_BACKUP_MODE=simple # cf man install
+PACKAGES_FILENAME="packages"
+AUR_FILENAME="aur"
+OVERLAY_FILENAME="overlay"
+OVERLAY_DIRNAME="${OVERLAY_FILENAME}.d"
 
 # ----------------------------------------------------------------------
 # DYNAMIC ASSOCIATIVE ARRAYS
@@ -67,25 +77,16 @@ DEFAULT_BACKUP_MODE=simple # cf man install
 # NOTE: "line: xxx: NAME: unbound variable errors are likely because an 
 # associative array isn't being detected (usually forgot to use a trailing 
 # underscore).
-
+# nb: the sed is a bit ugly but it's compensating for sed's natural greediness
 
 for filename in $0 $LIBS_DIRPATH/*; do
-#for assoc_array in $(egrep '^[^#]*_(\[.*\])?[+=]' $filename | sed 's/\W*\(\w\+_\)[\[\=\].*/\1/' | sort -u)
-for assoc_array in $(egrep '^[^#]*_(\[.*\])?[+=]' $filename | sed 's/\W*\(\W*\)\(\w\+_\)[\[\=\].*/\1-----\2/' | sed 's/.*-----\(.*\)/\1/' | sort -u)
+for assoc_array in $(egrep '^[^#]*_(\[.*\])?[+=]' $filename \
+    | sed 's/\W*\(\W*\)\(\w\+_\)[\[\=\].*/\1-----\2/' \
+    | sed 's/.*-----\(.*\)/\1/' | sort -u)
     do
-        #echo "declare -A $assoc_array";
         eval "declare -A $assoc_array";
     done;
 done; unset filename
-
-# ----------------------------------------------------------------------
-# SNAPSHOT FILENAMES
-# ----------------------------------------------------------------------
-
-PACKAGES_[FILENAME]="packages"
-AUR_[FILENAME]="aur"
-OVERLAY_[FILENAME]="overlay"
-OVERLAY_[DIRNAME]="${OVERLAY_[FILENAME]}.d"
 
 # ----------------------------------------------------------------------
 # LIBS
@@ -119,7 +120,7 @@ AUR_HELPER=${AUR_HELPER:-packer}
 OPT_BACKUP_MODE_=(
 [FLAG]='b'
 [STATE]='none'
-[STATE_SET]='${DEFAULT_BACKUP_MODE}'
+[STATE_SET]="${DEFAULT_BACKUP_MODE}"
 [ALERT]='Backups OFF; Files will be overwritten.'
 [ALERT_SET]='Backups ON; Files will be saved in place with backup suffix.'
 [USAGE]='Backup files when copying new file to existing path.'
@@ -133,7 +134,7 @@ OPT_FORCE_=(
 [USAGE]='Force all write operations; no prompts will be given.'
 )
 OPT_FULL_FORCE_=(
-[FLAG]='f'
+[FLAG]='F'
 [STATE]='false'
 [STATE_SET]='true'
 [ALERT]='Full Force mode OFF; No automatic uninstalls.'
@@ -231,13 +232,13 @@ NOTE: Running without options will execute ${SCRIPTNAME} in a safe, passive repo
 
 ${SCRIPTNAME} manages package and configuration files using a few simple lists.  
 
-    ${PACKAGES_[FILENAME]}
-    ${AUR_[FILENAME]}
-    ${OVERLAY_[FILENAME]}
+    ${PACKAGES_FILENAME}
+    ${AUR_FILENAME}
+    ${OVERLAY_FILENAME}
 
-The \"${PACKAGES_[FILENAME]}\" and \"${AUR_[FILENAME]}\" files are just a long list of package names that you either have or wish to install expclicitly on your current system.
+The \"${PACKAGES_FILENAME}\" and \"${AUR_FILENAME}\" files are just a long list of package names that you either have or wish to install expclicitly on your current system.
 
-The \"${OVERLAY_[FILENAME]}\" list can be initially created as a \"one-path-per-line\" list of files you wish to save a copy of in an \"${OVERLAY_[DIRNAME]}\" directory. These can then be used as a snapshot of, for example, system configuration state.
+The \"${OVERLAY_FILENAME}\" list can be initially created as a \"one-path-per-line\" list of files you wish to save a copy of in an \"${OVERLAY_DIRNAME}\" directory. These can then be used as a snapshot of, for example, system configuration state.
 
 ${SCRIPTNAME} runs in three modes:
 
@@ -289,10 +290,10 @@ local _option_warning="$(Options_Warning)"
 [[ -z ${_option_warning:-} ]] || UI_Query_Warning "${_option_warning}"
 
 # final path set based on options
-PACKAGES_[FILEPATH]="${SNAPSHOT_DIRPATH}/${PACKAGES_[FILENAME]}"
-AUR_[FILEPATH]="${SNAPSHOT_DIRPATH}/${AUR_[FILENAME]}"
-OVERLAY_[FILEPATH]="${SNAPSHOT_DIRPATH}/${OVERLAY_[FILENAME]}"
-OVERLAY_[DIRPATH]="${SNAPSHOT_DIRPATH}/${OVERLAY_[DIRNAME]}"
+PACKAGES_FILEPATH="${SNAPSHOT_DIRPATH}/${PACKAGES_FILENAME}"
+AUR_FILEPATH="${SNAPSHOT_DIRPATH}/${AUR_FILENAME}"
+OVERLAY_FILEPATH="${SNAPSHOT_DIRPATH}/${OVERLAY_FILENAME}"
+OVERLAY_DIRPATH="${SNAPSHOT_DIRPATH}/${OVERLAY_DIRNAME}"
 
 # set force if full force
 Is_True ${FULL_FORCE} && FORCE=true
@@ -314,16 +315,16 @@ EVENT_MODEALERT_=(
 be made."
 [REPORT,CONTRAINDICATOR]='FORCE'
 
-[SNAPSHOT,ALERT]="Running in snapshot update mode; '${PACKAGES_[FILENAME]}', 
-'${AUR_[FILENAME]}' list files in ${SNAPSHOT_DIRPATH} will be updated from the 
-current system state and any system files listed in ${OVERLAY_[FILENAME]} will 
-be copied to ${OVERLAY_[DIRPATH]}"
+[SNAPSHOT,ALERT]="Running in snapshot update mode; '${PACKAGES_FILENAME}', 
+'${AUR_FILENAME}' list files in ${SNAPSHOT_DIRPATH} will be updated from the 
+current system state and any system files listed in ${OVERLAY_FILENAME} will 
+be copied to ${OVERLAY_DIRPATH}"
 
 [SYSTEM,ALERT]="Running in system update mode; Installed system packages will 
 be installed/removed based on the current state of the snapshot-list files 
-'${PACKAGES_[FILENAME]}', '${AUR_[FILENAME]}' in the directory 
+'${PACKAGES_FILENAME}', '${AUR_FILENAME}' in the directory 
 ${SNAPSHOT_DIRPATH} (if present).  System files will be replaced by any files 
-listed in '${OVERLAY_[FILENAME]}' using sources in ${OVERLAY_[DIRPATH]}"
+listed in '${OVERLAY_FILENAME}' using sources in ${OVERLAY_DIRPATH}"
 
 )
 if ! Is_True "${!EVENT_MODEALERT_[$MODE,CONTRAINDICATOR]:-}"
@@ -371,14 +372,14 @@ then
 fi
 Unit_Report "$_message"
 
-OVERLAY_[FILE]="$(Read_File_Drop_Comments ${OVERLAY_[FILEPATH]})"
-PACKAGES_[FILE]="$(Read_File_Drop_Comments ${PACKAGES_[FILEPATH]} | Normalize_To_List)"
-AUR_[FILE]="$(Read_File_Drop_Comments ${AUR_[FILEPATH]} | Normalize_To_List)"
+PACKAGES_FILE="$(Read_File_Drop_Comments ${PACKAGES_FILEPATH} | Normalize_To_List)"
+AUR_FILE="$(Read_File_Drop_Comments ${AUR_FILEPATH} | Normalize_To_List)"
+#OVERLAY_FILE="$(Read_File_Drop_Comments ${OVERLAY_FILEPATH})"
 
-[[ -n ${OVERLAY_[FILE]} ]] \
-|| Unit_Report "No overlay file list. To save a snapshot of specific system 
-configuration files, make a line by line list of file paths in the following 
-file: ${OVERLAY_[FILEPATH]}"
+#[[ -n ${OVERLAY_FILE} ]] \
+#|| Unit_Report "No overlay file list. To save a snapshot of specific system 
+#configuration files, make a line by line list of file paths in the following 
+#file: ${OVERLAY_FILEPATH}"
 
 }
 
@@ -387,10 +388,10 @@ UNIT_Groups ()
 
 # DETECT GROUPS
 # ----------------------------------------------------------------------
-GROUPS_[POTENTIAL]=$(pacman -Qg | awk '{print $1}' | sort -u)
+GROUPS_POTENTIAL=$(pacman -Qg | awk '{print $1}' | sort -u)
 UI_Incremental_Alert "\nDetecting installed groups... "
 local _group
-for _group in ${GROUPS_[POTENTIAL]}
+for _group in ${GROUPS_POTENTIAL}
 do
     # get percentage of group already installed
     # sort -u required (via Normalize_To_List) as there can be duplicate package 
@@ -405,13 +406,13 @@ do
     local _score=$(echo $((($_group_count_repo*10)/$_group_count_local)))
     if [[ $_score -le $_threshold ]]
     then
-        GROUPS_[DETECTED]+="$_group "
+        GROUPS_DETECTED+="$_group "
         UI_Incremental_Alert "$_group "
     fi
 done
 UI_Incremental_Alert # finishes the incremental alert line
 Unit_Report "INSTALLED GROUPS (DETECTED>80% MEMBER PACKAGE 
-INSTALL):\n${GROUPS_[DETECTED]}"
+INSTALL):\n${GROUPS_DETECTED}"
 
 # CHECK GROUP FOR NEW/REMOVED PACKAGES
 # ----------------------------------------------------------------------
@@ -420,7 +421,7 @@ if Is_True ${GROUP_CURRENCY_CHECK}; then
 
 # scan and build list of missing/removed
 local _group
-for _group in ${GROUPS_[DETECTED]}
+for _group in ${GROUPS_DETECTED}
 do
     local _missing="$(Set_Op_Difference "${GROUP_PACKAGES_REPO_[$_group]}" "${GROUP_PACKAGES_LOCAL_[$_group]}")"
     if [[ -n ${_missing:-} ]]
@@ -497,7 +498,7 @@ then
     # regen packages list in case of changes to group packages
     # TODO: could check if changes were made, but this is a low cost procedure
     local _group
-    for _group in ${GROUPS_[DETECTED]}
+    for _group in ${GROUPS_DETECTED}
     do
         GROUP_PACKAGES_LOCAL_[${_group}]="$(pacman -Qgq $_group)"
         GROUP_PACKAGES_REPO_[${_group}]="$(pacman -Sgq $_group)"
@@ -568,7 +569,7 @@ UNIT_Packages ()
 UI_Passive_Alert "Getting list of explicitly installed packages"
 
 # TODO: deal with timeline of updating the group packages
-#PACKAGES_LOCAL_[ALLGROUPS]="$(pacman -Qgq | Normalize_To_List)"
+#PACKAGES_LOCAL_ALLGROUPS="$(pacman -Qgq | Normalize_To_List)"
 
 local _packages_groups="$(echo "${GROUP_PACKAGES_LOCAL_[*]}" | Normalize_To_List)"
 local _packages_explicit="$(pacman -Qeq)"
@@ -576,35 +577,35 @@ local _packages_manual="$(pacman -Qmq)"
 local _packages_repo="$(Set_Op_Difference "${_packages_explicit}" "${_packages_manual}")"
 local _packages_noaur="$(Set_Op_Difference "${_packages_explicit}" "${_packages_manual}")"
 
-PACKAGES_[LIVE]="$(Set_Op_Difference "${_packages_repo}" "${_packages_groups}")"
-AUR_[LIVE]="$(Set_Op_Intersection "${_packages_explicit}" "${_packages_manual}")"
-PACKAGES_MISSING_IN_[LIVE]="$(Set_Op_Difference "${PACKAGES_[FILE]}" "${PACKAGES_[LIVE]}")"
-PACKAGES_MISSING_IN_[FILE]="$(Set_Op_Difference "${PACKAGES_[LIVE]}" "${PACKAGES_[FILE]}")"
-AUR_MISSING_IN_[LIVE]="$(Set_Op_Difference "${AUR_[FILE]}" "${AUR_[LIVE]}")"
-AUR_MISSING_IN_[FILE]="$(Set_Op_Difference "${AUR_[LIVE]}" "${AUR_[FILE]}")"
+PACKAGES_LIVE="$(Set_Op_Difference "${_packages_repo}" "${_packages_groups}")"
+AUR_LIVE="$(Set_Op_Intersection "${_packages_explicit}" "${_packages_manual}")"
+PACKAGES_MISSING_IN_LIVE="$(Set_Op_Difference "${PACKAGES_FILE}" "${PACKAGES_LIVE}")"
+PACKAGES_MISSING_IN_FILE="$(Set_Op_Difference "${PACKAGES_LIVE}" "${PACKAGES_FILE}")"
+AUR_MISSING_IN_LIVE="$(Set_Op_Difference "${AUR_FILE}" "${AUR_LIVE}")"
+AUR_MISSING_IN_FILE="$(Set_Op_Difference "${AUR_LIVE}" "${AUR_FILE}")"
 
-_report_packages_live="\nOFFICIAL PACKAGES (EXCL. DEPENDENCIES, NO GROUP PACKAGES): \n$(echo ${PACKAGES_[LIVE]:-NONE})"
-_report_aur_live="\nAUR PACKAGES (EXCL. DEPENDENCIES):\n$(echo ${AUR_[LIVE]:-NONE})"
+_report_packages_live="\nOFFICIAL PACKAGES (EXCL. DEPENDENCIES, NO GROUP PACKAGES): \n$(echo ${PACKAGES_LIVE:-NONE})"
+_report_aur_live="\nAUR PACKAGES (EXCL. DEPENDENCIES):\n$(echo ${AUR_LIVE:-NONE})"
 Unit_Report "$(echo ${_report_packages_live})"
 Unit_Report "$(echo ${_report_aur_live})"
 
 case $MODE in
 REPORT) # Unit_Report all
-    [[ -z ${PACKAGES_MISSING_IN_[LIVE]:-} ]] \
-    || _report_packages_missingin_live="\nSNAPSHOT OFFICIAL PACKAGES NOT INSTALLED ON LIVE SYSTEM: \n$(echo ${PACKAGES_MISSING_IN_[LIVE]})"
-    [[ -z ${AUR_MISSING_IN_[LIVE]:-} ]] \
-    || _report_aur_missingin_live="\nSNAPSHOT AUR PACKAGES NOT INSTALLED ON LIVE SYSTEM: \n${AUR_MISSING_IN_[LIVE]})"
-    [[ -z ${PACKAGES_MISSING_IN_[FILE]:-} ]] \
-    || _report_packages_missinging_file="\nOFFICIAL PACKAGES INSTALLED ON LIVE SYSTEM BUT NOT IN SNAPSHOT: \n$(echo ${PACKAGES_MISSING_IN_[FILE]})"
-    [[ -z ${AUR_MISSING_IN_[FILE]:-} ]] \
-    || _report_aur_missingin_file="\nAUR PACKAGES INSTALLED ON LIVE SYSTEM BUT NOT IN SNAPSHOT: \n$(echo ${AUR_MISSING_IN_[FILE]})"
+    [[ -z ${PACKAGES_MISSING_IN_LIVE:-} ]] \
+    || _report_packages_missingin_live="\nSNAPSHOT OFFICIAL PACKAGES NOT INSTALLED ON LIVE SYSTEM: \n$(echo ${PACKAGES_MISSING_IN_LIVE})"
+    [[ -z ${AUR_MISSING_IN_LIVE:-} ]] \
+    || _report_aur_missingin_live="\nSNAPSHOT AUR PACKAGES NOT INSTALLED ON LIVE SYSTEM: \n${AUR_MISSING_IN_LIVE})"
+    [[ -z ${PACKAGES_MISSING_IN_FILE:-} ]] \
+    || _report_packages_missinging_file="\nOFFICIAL PACKAGES INSTALLED ON LIVE SYSTEM BUT NOT IN SNAPSHOT: \n$(echo ${PACKAGES_MISSING_IN_FILE})"
+    [[ -z ${AUR_MISSING_IN_FILE:-} ]] \
+    || _report_aur_missingin_file="\nAUR PACKAGES INSTALLED ON LIVE SYSTEM BUT NOT IN SNAPSHOT: \n$(echo ${AUR_MISSING_IN_FILE})"
     ;;
 SNAPSHOT) # Condition add all, conditional remove all
     ASK_AUTO_SOURCE_=(
     [LIST_VAR_NAME]=''
-    [LIST_VALUE]="${PACKAGES_MISSING_IN_[FILE]}"
+    [LIST_VALUE]="${PACKAGES_MISSING_IN_FILE}"
     [QUERY_STRING]='${_item} on system but not in snapshot. Add to snapshot?'
-    [ACTION_CMD]='PACKAGES_[FILE]="$(Set_Op_Union "${PACKAGES_[FILE]}" "${_item}")"'
+    [ACTION_CMD]='PACKAGES_FILE="$(Set_Op_Union "${PACKAGES_FILE}" "${_item}")"'
     [EXECUTED_CMD]='UI_Passive_Alert "Added"'
     [SKIPPED_CMD]='UI_Passive_Alert "Skipped"'
     [FAILED_CMD]='UI_Passive_Alert "Failed"'
@@ -620,9 +621,9 @@ SNAPSHOT) # Condition add all, conditional remove all
     Ask_Auto_Action ASK_AUTO_SOURCE_
     ASK_AUTO_SOURCE_=(
     [LIST_VAR_NAME]=''
-    [LIST_VALUE]="${PACKAGES_MISSING_IN_[LIVE]}"
+    [LIST_VALUE]="${PACKAGES_MISSING_IN_LIVE}"
     [QUERY_STRING]='${_item} in snapshot but not on system. Remove from snapshot?'
-    [ACTION_CMD]='PACKAGES_[FILE]="$(Set_Op_Difference "${PACKAGES_[FILE]}" "${_item}")"'
+    [ACTION_CMD]='PACKAGES_FILE="$(Set_Op_Difference "${PACKAGES_FILE}" "${_item}")"'
     [EXECUTED_CMD]='UI_Passive_Alert "Added"'
     [SKIPPED_CMD]='UI_Passive_Alert "Skipped"'
     [FAILED_CMD]='UI_Passive_Alert "Failed"'
@@ -638,9 +639,9 @@ SNAPSHOT) # Condition add all, conditional remove all
     Ask_Auto_Action ASK_AUTO_SOURCE_
     ASK_AUTO_SOURCE_=(
     [LIST_VAR_NAME]=''
-    [LIST_VALUE]="${AUR_MISSING_IN_[FILE]}"
+    [LIST_VALUE]="${AUR_MISSING_IN_FILE}"
     [QUERY_STRING]='${_item} on system but not in snapshot. Add to snapshot?'
-    [ACTION_CMD]='AUR_[FILE]="$(Set_Op_Union "${AUR_[FILE]}" "${_item}")"'
+    [ACTION_CMD]='AUR_FILE="$(Set_Op_Union "${AUR_FILE}" "${_item}")"'
     [EXECUTED_CMD]='UI_Passive_Alert "Added"'
     [SKIPPED_CMD]='UI_Passive_Alert "Skipped"'
     [FAILED_CMD]='UI_Passive_Alert "Failed"'
@@ -656,9 +657,9 @@ SNAPSHOT) # Condition add all, conditional remove all
     Ask_Auto_Action ASK_AUTO_SOURCE_
     ASK_AUTO_SOURCE_=(
     [LIST_VAR_NAME]=''
-    [LIST_VALUE]="${AUR_MISSING_IN_[LIVE]}"
+    [LIST_VALUE]="${AUR_MISSING_IN_LIVE}"
     [QUERY_STRING]='${_item} in snapshot but not on system. Remove from snapshot?'
-    [ACTION_CMD]='AUR_[FILE]="$(Set_Op_Difference "${AUR_[FILE]}" "${_item}")"'
+    [ACTION_CMD]='AUR_FILE="$(Set_Op_Difference "${AUR_FILE}" "${_item}")"'
     [EXECUTED_CMD]='UI_Passive_Alert "Added"'
     [SKIPPED_CMD]='UI_Passive_Alert "Skipped"'
     [FAILED_CMD]='UI_Passive_Alert "Failed"'
@@ -674,19 +675,19 @@ SNAPSHOT) # Condition add all, conditional remove all
     Ask_Auto_Action ASK_AUTO_SOURCE_
 
     # WRITE TO FILES
-    echo ${PACKAGES_[FILE]} >> $TMPDIR/${PACKAGES_[FILENAME]}
-    echo ${AUR_[FILE]} >> $TMPDIR/${AUR_[FILENAME]}
+    echo ${PACKAGES_FILE} >> $TMPDIR/${PACKAGES_FILENAME}
+    echo ${AUR_FILE} >> $TMPDIR/${AUR_FILENAME}
     local _filename
-    for _filename in ${PACKAGES_[FILENAME]} ${AUR_[FILENAME]}
+    for _filename in ${PACKAGES_FILENAME} ${AUR_FILENAME}
     do install -CD --backup=${BACKUP_MODE} -S${BACKUP_SUFFIX} "$TMPDIR/$_filename" "$SNAPSHOT_DIRPATH/$_filename"; done
 
     ;;
 SYSTEM)
     ASK_AUTO_SOURCE_=(
     [LIST_VAR_NAME]=''
-    [LIST_VALUE]="${PACKAGES_MISSING_IN_[FILE]}"
+    [LIST_VALUE]="${PACKAGES_MISSING_IN_FILE}"
     [QUERY_STRING]='${_item} on system but not in snapshot. Uninstall (recursive + removes unneeded)?'
-    [ACTION_CMD]='Install_Package "${_item}" && PACKAGES_[LIVE]="$(Set_Op_Union "${PACKAGES_[LIVE]}" "${_item}")"'
+    [ACTION_CMD]='Install_Package "${_item}" && PACKAGES_LIVE="$(Set_Op_Union "${PACKAGES_LIVE}" "${_item}")"'
     [EXECUTED_CMD]='UI_Passive_Alert "Installed"'
     [SKIPPED_CMD]='UI_Passive_Alert "Skipped"'
     [FAILED_CMD]='UI_Passive_Alert "Failed"'
@@ -702,9 +703,9 @@ SYSTEM)
     Ask_Auto_Action ASK_AUTO_SOURCE_
     ASK_AUTO_SOURCE_=(
     [LIST_VAR_NAME]=''
-    [LIST_VALUE]="${PACKAGES_MISSING_IN_[LIVE]}"
+    [LIST_VALUE]="${PACKAGES_MISSING_IN_LIVE}"
     [QUERY_STRING]='${_item} in snapshot but not on system. Install?'
-    [ACTION_CMD]='Uninstall_Package "${_item}" && PACKAGES_[LIVE]="$(Set_Op_Difference "${PACKAGES_[LIVE]}" "${_item}")"'
+    [ACTION_CMD]='Uninstall_Package "${_item}" && PACKAGES_LIVE="$(Set_Op_Difference "${PACKAGES_LIVE}" "${_item}")"'
     [EXECUTED_CMD]='UI_Passive_Alert "Installed"'
     [SKIPPED_CMD]='UI_Passive_Alert "Skipped"'
     [FAILED_CMD]='UI_Passive_Alert "Failed"'
@@ -720,9 +721,9 @@ SYSTEM)
     Ask_Auto_Action ASK_AUTO_SOURCE_
     ASK_AUTO_SOURCE_=(
     [LIST_VAR_NAME]=''
-    [LIST_VALUE]="${AUR_MISSING_IN_[FILE]}"
+    [LIST_VALUE]="${AUR_MISSING_IN_FILE}"
     [QUERY_STRING]='${_item} on system but not in snapshot. Uninstall (recursive + removes unneeded)?'
-    [ACTION_CMD]='Uninstall_Package "${_item}" && AUR_[LIVE]="$(Set_Op_Difference "${AUR_[LIVE]}" "${_item}")"'
+    [ACTION_CMD]='Uninstall_Package "${_item}" && AUR_LIVE="$(Set_Op_Difference "${AUR_LIVE}" "${_item}")"'
     [EXECUTED_CMD]='UI_Passive_Alert "Installed"'
     [SKIPPED_CMD]='UI_Passive_Alert "Skipped"'
     [FAILED_CMD]='UI_Passive_Alert "Failed"'
@@ -738,9 +739,9 @@ SYSTEM)
     Ask_Auto_Action ASK_AUTO_SOURCE_
     ASK_AUTO_SOURCE_=(
     [LIST_VAR_NAME]=''
-    [LIST_VALUE]="${AUR_MISSING_IN_[LIVE]}"
+    [LIST_VALUE]="${AUR_MISSING_IN_LIVE}"
     [QUERY_STRING]='${_item} in snapshot but not on system. Install?'
-    [ACTION_CMD]='Install_AUR "${_item}" && AUR_[LIVE]="$(Set_Op_Union "${AUR_[LIVE]}" "${_item}")"'
+    [ACTION_CMD]='Install_AUR "${_item}" && AUR_LIVE="$(Set_Op_Union "${AUR_LIVE}" "${_item}")"'
     [EXECUTED_CMD]='UI_Passive_Alert "Installed"'
     [SKIPPED_CMD]='UI_Passive_Alert "Skipped"'
     [FAILED_CMD]='UI_Passive_Alert "Failed"'
@@ -787,81 +788,234 @@ UNIT_Overlay ()
 # NO-SYS: System File Missing
 # NO-OVR: Overlay File Missing
 # NO-ALL: Overlay and System File Missing
+# 
+# OVERLAY_ACTION_GOOD_=(
+# [ID]="GOOD"
+# [REPORT]="Up to date."
+# [SYSTEM_UPDATE_QUERY]=""
+# [SYSTEM_UPDATE_COMMAND]=""
+# [SNAPSHOT_UPDATE_QUERY]=""
+# [SNAPSHOT_UPDATE_COMMAND]=""
+# )
+# OVERLAY_ACTION_ATTR_DIFF_=(
+# [ID]="ATTR-DIFF"
+# [REPORT]="System/Overlay attributes and file content different."
+# [SYSTEM_UPDATE_QUERY]="Copy file (content and attributes) from snapshot to live system"
+# [SYSTEM_UPDATE_COMMAND]='${_system_update_command}'
+# [SNAPSHOT_UPDATE_QUERY]="Copy file (content and attributes) from live system to snapshot"
+# [SNAPSHOT_UPDATE_COMMAND]='${_snapshot_update_command}'
+# )
+# OVERLAY_ACTION_ATTR_=(
+# [ID]="ATTR"
+# [REPORT]="System/Overlay attributes different."
+# [SYSTEM_UPDATE_QUERY]="Copy file attributes from snapshot to live system"
+# [SYSTEM_UPDATE_COMMAND]='${_system_update_command}'
+# [SNAPSHOT_UPDATE_QUERY]="Copy file attributes from live system to snapshot"
+# [SNAPSHOT_UPDATE_COMMAND]='${_snapshot_update_command}'
+# )
+# OVERLAY_ACTION_DIFF_=(
+# [ID]="DIFF"
+# [REPORT]="System/Overlay content different."
+# [SYSTEM_UPDATE_QUERY]="Copy file from snapshot to live system"
+# [SYSTEM_UPDATE_COMMAND]='${_system_update_command}'
+# [SNAPSHOT_UPDATE_QUERY]="Copy file from live system to snapshot"
+# [SNAPSHOT_UPDATE_COMMAND]='${_snapshot_update_command}'
+# )
+# OVERLAY_ACTION_NO_ALL_=(
+# [ID]="NO-ALL"
+# [REPORT]="System and overlay instances of overlay file path are both missing."
+# [SYSTEM_UPDATE_QUERY]=""
+# [SYSTEM_UPDATE_COMMAND]=""
+# [SNAPSHOT_UPDATE_QUERY]=""
+# [SNAPSHOT_UPDATE_COMMAND]=""
+# )
+# OVERLAY_ACTION_NO_OVR_=(
+# [ID]="NO-OVR"
+# [REPORT]="Overlay file missing, system file present."
+# [SYSTEM_UPDATE_QUERY]=""
+# [SYSTEM_UPDATE_COMMAND]=""
+# [SNAPSHOT_UPDATE_QUERY]="Copy file from live system to snapshot"
+# [SNAPSHOT_UPDATE_COMMAND]='${_snapshot_update_command}'
+# )
+# OVERLAY_ACTION_NO_SYS_=(
+# [ID]="NO-SYS"
+# [REPORT]="System file missing, overlay file present."
+# [SYSTEM_UPDATE_QUERY]="Copy file from snapshot to live system"
+# [SYSTEM_UPDATE_COMMAND]='${_system_update_command}'
+# [SNAPSHOT_UPDATE_QUERY]=""
+# [SNAPSHOT_UPDATE_COMMAND]=""
+# )
+# OVERLAY_ACTION_UNKNOWN_=(
+# [ID]="UNKNOWN"
+# [REPORT]=""
+# [SYSTEM_UPDATE_QUERY]=""
+# [SYSTEM_UPDATE_COMMAND]=""
+# [SNAPSHOT_UPDATE_QUERY]=""
+# [SNAPSHOT_UPDATE_COMMAND]=""
+# )
 
-OVERLAY_ACTION_GOOD_=(
-[ID]="GOOD"
-[REPORT]="Up to date."
-[SYSTEM_UPDATE_QUERY]=""
-[SYSTEM_UPDATE_COMMAND]=""
-[SNAPSHOT_UPDATE_QUERY]=""
-[SNAPSHOT_UPDATE_COMMAND]=""
-)
-OVERLAY_ACTION_ATTR_DIFF_=(
-[ID]="ATTR-DIFF"
-[REPORT]="System/Overlay attributes and file content different."
-[SYSTEM_UPDATE_QUERY]="Copy file (content and attributes) from snapshot to live system"
-[SYSTEM_UPDATE_COMMAND]='${_system_update_command}'
-[SNAPSHOT_UPDATE_QUERY]="Copy file (content and attributes) from live system to snapshot"
-[SNAPSHOT_UPDATE_COMMAND]='${_snapshot_update_command}'
-)
-OVERLAY_ACTION_ATTR_=(
-[ID]="ATTR"
-[REPORT]="System/Overlay attributes different."
-[SYSTEM_UPDATE_QUERY]="Copy file attributes from snapshot to live system"
-[SYSTEM_UPDATE_COMMAND]='${_system_update_command}'
-[SNAPSHOT_UPDATE_QUERY]="Copy file attributes from live system to snapshot"
-[SNAPSHOT_UPDATE_COMMAND]='${_snapshot_update_command}'
-)
-OVERLAY_ACTION_DIFF_=(
-[ID]="DIFF"
-[REPORT]="System/Overlay content different."
-[SYSTEM_UPDATE_QUERY]="Copy file from snapshot to live system"
-[SYSTEM_UPDATE_COMMAND]='${_system_update_command}'
-[SNAPSHOT_UPDATE_QUERY]="Copy file from live system to snapshot"
-[SNAPSHOT_UPDATE_COMMAND]='${_snapshot_update_command}'
-)
-OVERLAY_ACTION_NO_ALL_=(
-[ID]="NO-ALL"
-[REPORT]="System and overlay instances of overlay file path are both missing."
-[SYSTEM_UPDATE_QUERY]=""
-[SYSTEM_UPDATE_COMMAND]=""
-[SNAPSHOT_UPDATE_QUERY]=""
-[SNAPSHOT_UPDATE_COMMAND]=""
-)
-OVERLAY_ACTION_NO_OVR_=(
-[ID]="NO-OVR"
-[REPORT]="Overlay file missing, system file present."
-[SYSTEM_UPDATE_QUERY]=""
-[SYSTEM_UPDATE_COMMAND]=""
-[SNAPSHOT_UPDATE_QUERY]="Copy file from live system to snapshot"
-[SNAPSHOT_UPDATE_COMMAND]='${_snapshot_update_command}'
-)
-OVERLAY_ACTION_NO_SYS_=(
-[ID]="NO-SYS"
-[REPORT]="System file missing, overlay file present."
-[SYSTEM_UPDATE_QUERY]="Copy file from snapshot to live system"
-[SYSTEM_UPDATE_COMMAND]='${_system_update_command}'
-[SNAPSHOT_UPDATE_QUERY]=""
-[SNAPSHOT_UPDATE_COMMAND]=""
-)
-OVERLAY_ACTION_UNKNOWN_=(
-[ID]="UNKNOWN"
-[REPORT]=""
-[SYSTEM_UPDATE_QUERY]=""
-[SYSTEM_UPDATE_COMMAND]=""
-[SNAPSHOT_UPDATE_QUERY]=""
-[SNAPSHOT_UPDATE_COMMAND]=""
-)
+#OVERLAY_FILE="$(Read_File_Drop_Comments ${OVERLAY_FILEPATH})"
 
-if [[ -z "${OVERLAY_[FILE]}" ]]
+# Each line of the overlay is in one of two formats:
+# /file/path
+# or
+# /file/path 644 root root
+# We read each line into an array item
+#OVERLAY_FILE_ARRAY=( "$(egrep "^[^#]" ${OVERLAY_FILEPATH})" )
+
+#while read _line
+#do
+#    echo "READ LINE $_line_num: $_line"
+#    if echo "$_line" | egrep -q "^\s*[^#]"
+#    then
+#        echo "PASSED GREP"
+#        OVERLAY_FILE_ARRAY[$_line_num]="$_line"
+#        let "_line_num+=1"
+#    else
+#        echo "DIDN'T PASS GREP"
+#    fi
+#done < "${OVERLAY_FILEPATH}"
+
+Read_File_Lines_To_Array "${OVERLAY_FILEPATH}" OVERLAY_FILE_ARRAY
+
+if [[ -z ${OVERLAY_FILE_ARRAY[*]} ]]
 then
-    UI_Passive_Alert "Skipping overlay files check; no overlay file list in ${OVERLAY_[FILEPATH]}."
-else
-    UI_Passive_Alert "\nChecking overlay files list in ${OVERLAY_[FILEPATH]}"
-    Unit_Report "\nOVERLAY FILES (${OVERLAY_[FILEPATH]})"
-    DEFAULT_ATTRIBS="644 root root"
-    _IFS=$IFS; IFS=$'\n'
+    Unit_Report "No overlay file list. To save a snapshot of specific system 
+    configuration files, make a line by line list of file paths in the following 
+    file: ${OVERLAY_FILEPATH}"
+    return 0
+fi
 
+Unit_Report "OVERLAY FILES (${OVERLAY_FILEPATH})\n"
+DEFAULT_ATTRIBS="644 root root" # used only if we have a snapshot file but no system file and no attribs are listed
+
+#teststring="this\ has\ escaped\ spaces and this doesn't"
+#echo "teststring is $teststring"
+#for i in $teststring; do echo ">>> $i"; done
+#teststring="$(Swapout_Escaped_Spaces "$teststring")"
+#echo "teststring is $teststring"
+#for i in $teststring; do echo ">>> $(Swapin_Escaped_Spaces "$i")"; done
+#teststring="$(Swapin_Escaped_Spaces "$teststring")"
+#echo "teststring is $teststring"
+
+local _overlay_match=
+local _overlay_attribs_differ=
+local _overlay_contents_differ=
+local _overlay_missingon_system=
+local _overlay_missingon_snapshot=
+local _overlay_missingon_both=
+declare -ga overlay_match=
+declare -ga overlay_attribs_differ=
+declare -ga overlay_contents_differ=
+declare -ga overlay_missingon_system=
+declare -ga overlay_missingon_snapshot=
+declare -ga overlay_missingon_both=
+
+_line_num=0
+while true
+do
+    [[ $_line_num == ${#OVERLAY_FILE_ARRAY[@]} ]] && break
+    _line="$(Swap_Out_Escaped_Spaces ${OVERLAY_FILE_ARRAY[$_line_num]})"
+    local _this_system_path="$(Swap_In_Escaped_Spaces $(echo -n $_line | awk '{print $1}'))"
+    local _this_overlay_path="$OVERLAY_DIRPATH/${_this_system_path#/}"
+    local _this_overlay_attribs="$(echo -n $_line | awk '{print $2,$3,$4}' | sed 's/^\s*\(.*\)\s*/\1/')"
+    local _this_system_attribs="$(stat -c '%a %U %G' ${_this_system_path} 2>/dev/null | sed 's/^\s*\(.*\)\s*/\1/')"
+    if [[ ! -e "${_this_system_path}" && ! -e "${_this_overlay_path}" ]]; then
+        #local _overlay_missingon_both=+("${_this_system_path}")
+        overlay_missingon_both[${#overlay_missingon_both[*]}]="${_this_system_path}"
+    elif [[ ! -e "${_this_system_path}" && -e "${_this_overlay_path}" ]]; then
+        overlay_missingon_system[${#overlay_missingon_system[*]}]="${_this_system_path}"
+    elif [[ -e "${_this_system_path}" && ! -e "${_this_overlay_path}" ]]; then
+        overlay_missingon_snapshot[${#overlay_missingon_snapshot[*]}]="${_this_system_path}"
+    # PAST HERE, BOTH FILES PRESENT
+    elif ! diff -q "${_this_overlay_path}" "${_this_system_path}" &>/dev/null; then
+        # same attribs, different content
+        overlay_contents_differ[${#overlay_contents_differ[*]}]="${_this_system_path}"
+    elif [[ "${_this_overlay_attribs}" != "${_this_system_attribs}" ]]; then
+        # differing attribs
+        overlay_attribs_differ[${#overlay_attribs_differ[*]}]="${_this_system_path}"
+    else
+        # same attribs, same content
+        overlay_match[${#overlay_match[*]}]="${_this_system_path}"
+    fi
+    let "_line_num+=1"
+done
+
+Debug "================>>>>>>>>overlay_missingon_snapshot  ${overlay_missingon_snapshot[@]}"
+
+case $MODE in
+REPORT)
+    [[ -n ${overlay_match[@]} ]] && Unit_Report "OVERLAY MATCHES ON SYSTEM/SNAPSHOT:\n${overlay_match[@]}"
+    [[ -n ${overlay_missingon_system[@]} ]] && Unit_Report "OVERLAY MISSING ON SYSTEM (PRESENT IN SNAPSHOT):\n$(Array_To_Report overlay_missingon_system)"
+    [[ -n ${overlay_missingon_snapshot[@]} ]] && Unit_Report "OVERLAY MISSING ON SNAPSHOT (PRESENT ON SYSTEM):$(Array_To_Report overlay_missingon_snapshot)"
+    [[ -n ${overlay_missingon_both[@]} ]] && Unit_Report "OVERLAY MISSING ON BOTH SYSTEM AND SNAPSHOT:$(Array_To_Report overlay_missingon_both)"
+    [[ -n ${overlay_attribs_differ[@]} ]] && Unit_Report "OVERLAY ATTRIBUTES DIFFER (OR MISSING) ON SYSTEM/SNAPSHOT:\n$(Array_To_Report overlay_attribs_differ)"
+    [[ -n ${overlay_contents_differ[@]} ]] && Unit_Report "OVERLAY CONTENTS DIFFER ON SYSTEM/SNAPSHOT:\n$(Array_To_Overlay overlay_contents_differ)"
+;;
+SNAPSHOT)
+    # TODO: ask auto action needs to handle possible spaces in filenames, etc.
+    # [LIST_VALUE]="${_overlay_missingon_snapshot}"
+    ASK_AUTO_SOURCE_=(
+    [LIST_VAR_NAME]='overlay_missingon_snapshot'
+    [QUERY_STRING]='${_item} missing from overlay. Copy to overlay directory?'
+    [ACTION_CMD]='install -CD --backup=${BACKUP_MODE} -S${BACKUP_SUFFIX} ${_item} ${OVERLAY_DIRPATH}/${_item%/}'
+    [EXECUTED_CMD]=''
+    [SKIPPED_CMD]=''
+    [FAILED_CMD]=''
+    [EXECUTED_LIST_CMD]='Unit_Report "Missing overlay files - added to overlay directory: ${_executed_list}"'
+    [SKIPPED_LIST_CMD]='Unit_Report "Missing overlay files - not added to overlay directory: ${_skipped_list}"'
+    [FAILED_LIST_CMD]='Unit_Report "Missing overlay files - failed to add to overlay directory: ${_failed_list}"'
+    [EXECUTED_RTN_NAME]=''
+    [SKIPPED_RTN_NAME]=''
+    [FAILED_RTN_NAME]=''
+    [FORCE_VALUE]='${FORCE}'
+    [DEFAULT_CHOICE]='true'
+    )
+    Ask_Auto_Action ASK_AUTO_SOURCE_
+    #[LIST_VALUE]="${_overlay_attribs_differ}"
+    ASK_AUTO_SOURCE_=(
+    [LIST_VAR_NAME]='overlay_attribs_differ'
+    [QUERY_STRING]='${_item} attributes different on overlay and system. Update overlay attributes?'
+    [ACTION_CMD]='install -CD --backup=${BACKUP_MODE} -S${BACKUP_SUFFIX} ${_item} ${OVERLAY_DIRPATH}/${_item%/}'
+    [EXECUTED_CMD]=''
+    [SKIPPED_CMD]=''
+    [FAILED_CMD]=''
+    [EXECUTED_LIST_CMD]='Unit_Report "Missing overlay files - added to overlay directory: ${_executed_list}"'
+    [SKIPPED_LIST_CMD]='Unit_Report "Missing overlay files - not added to overlay directory: ${_skipped_list}"'
+    [FAILED_LIST_CMD]='Unit_Report "Missing overlay files - failed to add to overlay directory: ${_failed_list}"'
+    [EXECUTED_RTN_NAME]=''
+    [SKIPPED_RTN_NAME]=''
+    [FAILED_RTN_NAME]=''
+    [FORCE_VALUE]='${FORCE}'
+    [DEFAULT_CHOICE]='true'
+    )
+    Ask_Auto_Action ASK_AUTO_SOURCE_
+#    process with ask-auto-action
+#    ${_overlay_contents_differ}
+#    report with unit-report
+#    ${_overlay_missingon_system}
+#    ${_overlay_missingon_both}
+#    ${_overlay_match}
+;;
+SYSTEM)
+;;
+esac
+
+}
+#    for snapshot update
+#    iterate through lists, create new output list/file
+#    only write ouput file on total completion (write to tmp and then to final)
+#    install any that are different
+#    update perms?
+#    note about missing_system
+#    note about missing_both
+#
+#    for system
+#    iterate through lists, install new file to system for differ/missing_system
+#    note about missing_snapshot
+#    note about missing_both
+#
+    # TODO: add a dateline and summary comment at top of each generated file
 
     # either overlays match or they don't
     # report: report if they match or not
@@ -873,25 +1027,30 @@ else
 
 
 
-    ASK_AUTO_SOURCE_=(
-    [LIST_VAR_NAME]=''
-    [LIST_VALUE]="${OVERLAY_[FILE]}"
-    [QUERY_TEST]=''
-    [QUERY_STRING]='${_item} on system but not in snapshot. Uninstall (recursive + removes unneeded)?'
-    [ACTION_CMD]='Uninstall_Package "${_item}" && AUR_[LIVE]="$(Set_Op_Difference "${AUR_[LIVE]}" "${_item}")"'
-    [EXECUTED_CMD]='UI_Passive_Alert "Installed"'
-    [SKIPPED_CMD]='UI_Passive_Alert "Skipped"'
-    [FAILED_CMD]='UI_Passive_Alert "Failed"'
-    [EXECUTED_LIST_CMD]='Unit_Report "UNINSTALLED FROM SYSTEM: ${_executed_list}"'
-    [SKIPPED_LIST_CMD]='Unit_Report "NOT UNINSTALLED FROM SYSTEM: ${_skipped_list}"'
-    [FAILED_LIST_CMD]='Unit_Report "FAILED TO UNINSTALL FROM SYSTEM: ${_failed_list}"'
-    [EXECUTED_RTN_NAME]=''
-    [SKIPPED_RTN_NAME]=''
-    [FAILED_RTN_NAME]=''
-    [FORCE_VALUE]='${FORCE}'
-    [DEFAULT_CHOICE]='false'
-    )
-    #Ask_Auto_Action ASK_AUTO_SOURCE_
+#    ASK_AUTO_SOURCE_=(
+#    [LIST_VAR_NAME]=''
+#    [LIST_VALUE]="${OVERLAY_FILE}"
+#    [QUERY_TEST]=''
+#    [QUERY_STRING]='${_item} on system but not in snapshot. Uninstall (recursive + removes unneeded)?'
+#    [ACTION_CMD]='Uninstall_Package "${_item}" && AUR_LIVE="$(Set_Op_Difference "${AUR_LIVE}" "${_item}")"'
+#    [EXECUTED_CMD]='UI_Passive_Alert "Installed"'
+#    [SKIPPED_CMD]='UI_Passive_Alert "Skipped"'
+#    [FAILED_CMD]='UI_Passive_Alert "Failed"'
+#    [EXECUTED_LIST_CMD]='Unit_Report "UNINSTALLED FROM SYSTEM: ${_executed_list}"'
+#    [SKIPPED_LIST_CMD]='Unit_Report "NOT UNINSTALLED FROM SYSTEM: ${_skipped_list}"'
+#    [FAILED_LIST_CMD]='Unit_Report "FAILED TO UNINSTALL FROM SYSTEM: ${_failed_list}"'
+#    [EXECUTED_RTN_NAME]=''
+#    [SKIPPED_RTN_NAME]=''
+#    [FAILED_RTN_NAME]=''
+#    [FORCE_VALUE]='${FORCE}'
+#    [DEFAULT_CHOICE]='false'
+#    )
+#    #Ask_Auto_Action ASK_AUTO_SOURCE_
+#
+#
+#
+#
+#
 
 
 
@@ -902,64 +1061,59 @@ else
 
 
 
-
-
-
-
-
-
-    local _line
-    for _line in ${OVERLAY_[FILE]}
-    do
-
-        # Read overlay and system file state
-        local _system_file_path=$(echo -n $_line | awk '{print $1}')
-        local _overlaydir_file_path="${OVERLAY_[DIRPATH]}${_system_file_path}"
-        local _attribs_file=$(echo -n $_line | awk '{print $2,$3,$4}')
-        local _mode_file=$(echo -n $_line | awk '{print $2}')
-        local _owner_file=$(echo -n $_line | awk '{print $3}')
-        local _group_file=$(echo -n $_line | awk '{print $4}')
-        local _attribs_live=$(stat -c '%a %U %G' ${_system_file_path} 2>/dev/null)
-        local _mode_live=$(stat -c '%a' ${_system_file_path} 2>/dev/null)
-        local _owner_live=$(stat -c '%U' ${_system_file_path} 2>/dev/null)
-        local _group_live=$(stat -c '%G' ${_system_file_path} 2>/dev/null)
-        [[ ! -e "${_system_file_path}" ]] \
-        && local _system_file_present=false \
-        || local _system_file_present=true
-        [[ ! -e "${_overlaydir_file_path}" ]] \
-        && local _overlay_file_present=false \
-        || local _overlay_file_present=true
-        diff -q "${_overlaydir_file_path}" "${_system_file_path}" &>/dev/null \
-        && local _overlay_diff=false \
-        || local _overlay_diff=true
-
-        local _state="UNKNOWN"
-        if ! Is_True _overlay_diff && [[ "${_attribs_file}" == "${_attribs_live}" ]]
-        then _state="GOOD"
-        elif Is_True _overlay_diff && [[ "${_attribs_file}" != "${_attribs_live}" ]]
-        then _state="ATTR_DIFF"
-        elif [[ "${_attribs_file}" != "${_attribs_live}" ]]
-        then _state="ATTR"
-        elif Is_True _overlay_diff
-        then _state="DIFF"
-        elif [[ ! -e "${_system_file_path}" && ! -e ${$_overlaydir_file_path} ]]
-        then _state="NO_ALL"
-        elif [[ -e "${_system_file_path}" && ! -e ${$_overlaydir_file_path} ]]
-        then _state="NO_OVR"
-        elif [[ ! -e "${_system_file_path}" && -e ${$_overlaydir_file_path} ]]
-        then _state="NO_SYS"
-        fi
-
-        eval local _id=\"\${OVERLAY_ACTION_${_state}_[ID]:-}\"
-        eval local _report=\"\${OVERLAY_ACTION_${_state}_[REPORT]:-}\"
-        eval local _system_update_query=\"\${OVERLAY_ACTION_${_state}_[SYSTEM_UPDATE_QUERY]:-}\"
-        eval local _system_update_command=\"\${OVERLAY_ACTION_${_state}_[SYSTEM_UPDATE_COMMAND]:-}\"
-        eval local _snapshot_update_query=\"\${OVERLAY_ACTION_${_state}_[SNAPSHOT_UPDATE_QUERY]:-}\"
-        eval local _snapshot_update_command=\"\${OVERLAY_ACTION_${_state}_[SNAPSHOT_UPDATE_COMMAND]:-}\"
-
-        _system_update_command="sudo install -CD --backup=${BACKUP_MODE} -S${BACKUP_SUFFIX} -g${_group_file} -o${_owner_file} -m${_mode_file} ${_overlaydir_file_path} $_system_file_path"
-        _snapshot_update_command="install -CD --backup=${BACKUP_MODE} -S${BACKUP_SUFFIX} $_system_file_path ${_overlaydir_file_path}"
-
+#
+#    local _line
+#    for _line in ${OVERLAY_FILE}
+#    do
+#
+#        # Read overlay and system file state
+#        local _system_file_path=$(echo -n $_line | awk '{print $1}')
+#        local _overlaydir_file_path="${OVERLAY_DIRPATH}${_system_file_path}"
+#        local _attribs_file=$(echo -n $_line | awk '{print $2,$3,$4}')
+#        local _mode_file=$(echo -n $_line | awk '{print $2}')
+#        local _owner_file=$(echo -n $_line | awk '{print $3}')
+#        local _group_file=$(echo -n $_line | awk '{print $4}')
+#        local _attribs_live=$(stat -c '%a %U %G' ${_system_file_path} 2>/dev/null)
+#        local _mode_live=$(stat -c '%a' ${_system_file_path} 2>/dev/null)
+#        local _owner_live=$(stat -c '%U' ${_system_file_path} 2>/dev/null)
+#        local _group_live=$(stat -c '%G' ${_system_file_path} 2>/dev/null)
+#        [[ ! -e "${_system_file_path}" ]] \
+#        && local _system_file_present=false \
+#        || local _system_file_present=true
+#        [[ ! -e "${_overlaydir_file_path}" ]] \
+#        && local _overlay_file_present=false \
+#        || local _overlay_file_present=true
+#        diff -q "${_overlaydir_file_path}" "${_system_file_path}" &>/dev/null \
+#        && local _overlay_diff=false \
+#        || local _overlay_diff=true
+#
+#        local _state="UNKNOWN"
+#        if ! Is_True _overlay_diff && [[ "${_attribs_file}" == "${_attribs_live}" ]]
+#        then _state="GOOD"
+#        elif Is_True _overlay_diff && [[ "${_attribs_file}" != "${_attribs_live}" ]]
+#        then _state="ATTR_DIFF"
+#        elif [[ "${_attribs_file}" != "${_attribs_live}" ]]
+#        then _state="ATTR"
+#        elif Is_True _overlay_diff
+#        then _state="DIFF"
+#        elif [[ ! -e "${_system_file_path}" && ! -e ${$_overlaydir_file_path} ]]
+#        then _state="NO_ALL"
+#        elif [[ -e "${_system_file_path}" && ! -e ${$_overlaydir_file_path} ]]
+#        then _state="NO_OVR"
+#        elif [[ ! -e "${_system_file_path}" && -e ${$_overlaydir_file_path} ]]
+#        then _state="NO_SYS"
+#        fi
+#
+#        eval local _id=\"\${OVERLAY_ACTION_${_state}_[ID]:-}\"
+#        eval local _report=\"\${OVERLAY_ACTION_${_state}_[REPORT]:-}\"
+#        eval local _system_update_query=\"\${OVERLAY_ACTION_${_state}_[SYSTEM_UPDATE_QUERY]:-}\"
+#        eval local _system_update_command=\"\${OVERLAY_ACTION_${_state}_[SYSTEM_UPDATE_COMMAND]:-}\"
+#        eval local _snapshot_update_query=\"\${OVERLAY_ACTION_${_state}_[SNAPSHOT_UPDATE_QUERY]:-}\"
+#        eval local _snapshot_update_command=\"\${OVERLAY_ACTION_${_state}_[SNAPSHOT_UPDATE_COMMAND]:-}\"
+#
+#        _system_update_command="sudo install -CD --backup=${BACKUP_MODE} -S${BACKUP_SUFFIX} -g${_group_file} -o${_owner_file} -m${_mode_file} ${_overlaydir_file_path} $_system_file_path"
+#        _snapshot_update_command="install -CD --backup=${BACKUP_MODE} -S${BACKUP_SUFFIX} $_system_file_path ${_overlaydir_file_path}"
+#
         # TODO: Update the actual list along with the install!!!
         # Ack ack ack... this is all wrong. In the case of attribs for 
         # snapshot, I *just* need to change the file, not install (though for 
@@ -977,79 +1131,79 @@ else
         # package check sequence as well. revisit these and see if they can be 
         # formatted better and generally improved.
 
-        local _alert= 
-        local _state_line="${_id}: ${_system_file_path} ${_report:+>>> }${_report}"
-        local _state_newline="\n${_state_line}"
-        if ! Is_True ${SYSTEM_UPDATE:-} && ! Is_True ${SNAPSHOT_UPDATE:-}
-        then # REPORT MODE
-            Unit_Report "${_state_line}"
-        elif Is_True ${SNAPSHOT_UPDATE:-} && [[ -n ${_snapshot_update_command:-} ]]
-        then # SNAPSHOT UPDATE MODE
-Debug
-            UI_Passive_Alert "${_state_newline}"
-            if Is_True ${FORCE:-}
-            then
-Debug
-                eval eval "${_snapshot_update_command}" \
-                    && Unit_Report "${_snapshot_update_query}: DONE" \
-                    || Unit_Report "${_snapshot_update_query}: FAILED"
-            else
-                if [[ -z "${_snapshot_update_query}" ]]
-                then
-                    UI_Passive_Alert "${_state_line}"
-                    Unit_Report "${_state_line}"
-                elif Query "${_snapshot_update_query}"
-                then
-Debug
-                    eval eval "${_snapshot_update_command}" \
-                    && _alert="${_snapshot_update_query}: DONE" \
-                    || _alert="${_snapshot_update_query}: FAILED"
-                    UI_Passive_Alert "${_alert}"
-                    Unit_Report "${_state_line} -> ${_alert}"
-                else
-                    #_alert="${_snapshot_update_query:-}: SKIPPED"
-                    _alert="SKIPPED"
-                    UI_Passive_Alert "${_alert}"
-                    Unit_Report "${_state_line} -> ${_alert}"
-                fi
-            fi
-        elif Is_True ${SYSTEM_UPDATE:-} && [[ -n ${_system_update_command:-} ]]
-        then # SYSTEM UPDATE MODE
-Debug
-            UI_Passive_Alert "${_state_newline}"
-            if Is_True ${FORCE:-}
-            then
-Debug
-                eval eval "${_system_update_command}" \
-                    && UI_Passive_Alert "${_system_update_query}: DONE" \
-                    || UI_Passive_Alert "${_system_update_query}: FAILED"
-            else
-                if [[ -z "${_system_update_query}" ]]
-                then
-                    UI_Passive_Alert "${_state_line}"
-                    Unit_Report "${_state_line}"
-                elif Query "${_system_update_query}"
-                then
-Debug
-                    eval eval "${_system_update_command}" \
-                    && _alert="${_system_update_query}: DONE" \
-                    || _alert="${_system_update_query}: FAILED"
-                    UI_Passive_Alert "${_alert}"
-                    Unit_Report "${_state_line} -> ${_alert}"
-                else
-                    #_alert="${_system_update_query}: SKIPPED"
-                    _alert="SKIPPED"
-                    UI_Passive_Alert "${_alert}"
-                    Unit_Report "${_state_line} -> ${_alert}"
-                fi
-            fi
-        else
-Debug
-            UI_Passive_Alert "${_state_line}"
-            Unit_Report "${_state_line}"
-        fi
-    done
-fi
+#        local _alert= 
+#        local _state_line="${_id}: ${_system_file_path} ${_report:+>>> }${_report}"
+#        local _state_newline="\n${_state_line}"
+#        if ! Is_True ${SYSTEM_UPDATE:-} && ! Is_True ${SNAPSHOT_UPDATE:-}
+#        then # REPORT MODE
+#            Unit_Report "${_state_line}"
+#        elif Is_True ${SNAPSHOT_UPDATE:-} && [[ -n ${_snapshot_update_command:-} ]]
+#        then # SNAPSHOT UPDATE MODE
+#Debug
+#            UI_Passive_Alert "${_state_newline}"
+#            if Is_True ${FORCE:-}
+#            then
+#Debug
+#                eval eval "${_snapshot_update_command}" \
+#                    && Unit_Report "${_snapshot_update_query}: DONE" \
+#                    || Unit_Report "${_snapshot_update_query}: FAILED"
+#            else
+#                if [[ -z "${_snapshot_update_query}" ]]
+#                then
+#                    UI_Passive_Alert "${_state_line}"
+#                    Unit_Report "${_state_line}"
+#                elif Query "${_snapshot_update_query}"
+#                then
+#Debug
+#                    eval eval "${_snapshot_update_command}" \
+#                    && _alert="${_snapshot_update_query}: DONE" \
+#                    || _alert="${_snapshot_update_query}: FAILED"
+#                    UI_Passive_Alert "${_alert}"
+#                    Unit_Report "${_state_line} -> ${_alert}"
+#                else
+#                    #_alert="${_snapshot_update_query:-}: SKIPPED"
+#                    _alert="SKIPPED"
+#                    UI_Passive_Alert "${_alert}"
+#                    Unit_Report "${_state_line} -> ${_alert}"
+#                fi
+#            fi
+#        elif Is_True ${SYSTEM_UPDATE:-} && [[ -n ${_system_update_command:-} ]]
+#        then # SYSTEM UPDATE MODE
+#Debug
+#            UI_Passive_Alert "${_state_newline}"
+#            if Is_True ${FORCE:-}
+#            then
+#Debug
+#                eval eval "${_system_update_command}" \
+#                    && UI_Passive_Alert "${_system_update_query}: DONE" \
+#                    || UI_Passive_Alert "${_system_update_query}: FAILED"
+#            else
+#                if [[ -z "${_system_update_query}" ]]
+#                then
+#                    UI_Passive_Alert "${_state_line}"
+#                    Unit_Report "${_state_line}"
+#                elif Query "${_system_update_query}"
+#                then
+#Debug
+#                    eval eval "${_system_update_command}" \
+#                    && _alert="${_system_update_query}: DONE" \
+#                    || _alert="${_system_update_query}: FAILED"
+#                    UI_Passive_Alert "${_alert}"
+#                    Unit_Report "${_state_line} -> ${_alert}"
+#                else
+#                    #_alert="${_system_update_query}: SKIPPED"
+#                    _alert="SKIPPED"
+#                    UI_Passive_Alert "${_alert}"
+#                    Unit_Report "${_state_line} -> ${_alert}"
+#                fi
+#            fi
+#        else
+#Debug
+#            UI_Passive_Alert "${_state_line}"
+#            Unit_Report "${_state_line}"
+#        fi
+#    done
+#fi
 
 
 #In system update mode
@@ -1058,7 +1212,7 @@ fi
 
 #
 #    local _line
-#    for _line in ${OVERLAY_[FILE]}
+#    for _line in ${OVERLAY_FILE}
 #    do
 #        local _path=$(echo -n $_line | awk '{print $1}')
 #        local _attribs_file=$(echo -n $_line | awk '{print $2,$3,$4}')
@@ -1106,11 +1260,11 @@ fi
 #    IFS=$_IFS
 #else
 #    UI_Passive_Alert "Skipping overlay files check; no overlay file list in 
-#    ${OVERLAY_[FILEPATH]}"
+#    ${OVERLAY_FILEPATH}"
 #fi
 
 #_IFS=$IFS; IFS=$'\n'
-#for line in ${OVERLAY_[FILE]}
+#for line in ${OVERLAY_FILE}
 #do
 #    _path=$(echo -n $line | awk '{print $1}')
 #    _attribs=$(echo -n $line | awk '{print $2,$3,$4}')
@@ -1118,8 +1272,8 @@ fi
 #    [[ -z "${_attribs}" && -e "${_path}" ]] && _attribs="${_live_attribs}"
 #    OVERLAY_[REVIEWED]+="$_path $_attribs\n"
 #    [[ -e "$_path" ]] \
-#        && OVERLAY_[LIVE]+="$_path $_live_attribs\n" \
-#        || OVERLAY_[LIVE]+="$_path $_attribs\n"
+#        && OVERLAY_LIVE+="$_path $_live_attribs\n" \
+#        || OVERLAY_LIVE+="$_path $_attribs\n"
 #    overlay_files[paths]+="$_path\n"
 #done
 #IFS=$_IFS
@@ -1136,7 +1290,7 @@ fi
 #    report overlay "${overlay_files[diff]}"
 #fi
 #
-}
+#}
 
 UNIT_Report ()
 {
