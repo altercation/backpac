@@ -2,12 +2,17 @@
 
 Debug () { echo -e ">>> DEBUG: EXECUTING ${FUNCNAME[1]} AT LINE ${BASH_LINENO[0]}${*:+ >>> }${*:-}"; }
 
+Hash_Of () { echo -n "${1}" | md5sum | awk '{print $1}'; }
+
 #
 Is_True () { case $(Lower_Case ${1:-}) in true|yes|1|y) return 0 ;; *) return 1 ;; esac; }
 Is_False () { case $(Lower_Case ${1:-}) in false|no|0|n) return 0 ;; *) return 1 ;; esac; }
 
 # takes variable name to check
-Is_Array () { [[ -n ${1:-} ]] && declare | egrep -q "^${1}=\(" || return 1; }
+Is_Array () { [[ -n ${1:-} ]] && echo "$(declare)" | egrep -q "^${1}=\(" || return 1; }
+Unset_Array () { eval "local _i; for _i in \"\${!${1}[@]}\"; do unset ${1}[\$_i]; done;"; }
+Add_To_Array () { local _array="${1}" _val="${2}"; declare -ga "$_array"; eval "$_array[\${#$_array[*]}]=\"\${_val}\""; }
+
 Upper_Case () { echo -n "$*" | tr '[:lower:]' '[:upper:]'; }
 Lower_Case () { echo -n "$*" | tr '[:upper:]' '[:lower:]'; }
 
@@ -35,11 +40,28 @@ Read_File_Lines_To_Array ()
     do
         if echo "$_line" | egrep -q "^\s*[^#]"
         then
-            OVERLAY_FILE_ARRAY[$_line_num]="$_line"
+            declare -ag ${_arrayname}[$_line_num]="$_line"
             let "_line_num+=1"
         fi
     done < "${_filepath}"
 }
+
+Array_To_List ()
+{
+    local _arrayname="${1}"
+    local _line
+    local _line_num=0
+    while true
+    do
+        eval [[ \$_line_num == \${#$_arrayname[@]} ]] && break
+        #eval echo "\${$_arrayname[$_line_num]}" | sed "s/\\/\\\\/g"
+        eval _line="\${$_arrayname[$_line_num]}"
+        echo "${_line}"
+        let "_line_num+=1"
+    done
+}
+
+# TODO: get rid of duplication with to list above
 Array_To_Report ()
 {
     local _arrayname="${1}"
@@ -59,7 +81,8 @@ Array_To_Report ()
 Swap_Out_Escaped_Spaces () { [[ -n ${*:-} ]] && ( echo -n "${*}" | sed 's/\\ /\d011/g'; ) || return 0; }
 Swap_In_Escaped_Spaces () { [[ -n ${*:-} ]] && ( echo -n "${*}" | sed 's/\d011/\\ /g'; ) || return 0; }
 
-UI_Passive_Alert () { eval "local _alert=\"${1:-}\""; [[ -n ${_alert:-} ]] && echo -e "${_alert}"; }
+#UI_Passive_Alert () { eval "local _alert=\"${1:-}\""; [[ -n ${_alert:-} ]] && echo -e "${_alert}"; }
+UI_Passive_Alert () { eval "local _alert=\"${1:-}\""; [[ -n ${_alert:-} ]] && echo -e "${_alert}" | fmt -sw 80; }
 UI_Incremental_Alert () { [[ -n ${1:-} ]] && echo -ne "${1}" || echo; }
 UI_Passive_Warning () { echo -e "\nWARNING"; eval "echo -e \"${*}\""; }
 UI_Query_Warning () { echo -e "\nWARNING"; eval "echo -e \"${*}\""; Query "Proceed?"; }
@@ -70,7 +93,7 @@ UI_Query_Warning () { echo -e "\nWARNING"; eval "echo -e \"${*}\""; Query "Proce
 Query ()
 {
     eval "local _alert=\"${1}\""
-    echo -en "${_alert}"
+    echo -n "$(echo -en "${_alert}" | fmt -sw 80)"
     while true
     do
         [[ -n ${2:-} ]] \
@@ -260,6 +283,50 @@ do
 done
 }
 
+Option_Is_Set ()
+{
+    local _option_array="${1}"
+    eval local _test_set=\"\${$_option_array[SET]:-}\"
+    [[ -n ${_test_set} ]] && return 0 || return 1
+}
+
+Unframe_Reframe ()
+{
+    local _lstring="${1}"
+    local _mstring="${2}"
+    local _rstring="${3}"
+    eval "_mstring=\"\${_mstring#$_lstring}\""
+    eval "_mstring=\"\${_mstring%$_rstring}\""
+    echo -n "${_lstring}${_mstring}${_rstring}"
+}
+
+Options_Prerun ()
+{
+local _option_array
+for _option_array in ${!OPT_*}
+do
+    if Option_Is_Set $_option_array
+    then
+        eval local _prerun=\"\${$_option_array[PRERUN]:-}\"
+        eval local _prerun_conditionals=\"\${$_option_array[PRERUN_CONDITIONALS]:-}\"
+        local _prerun_displayed=false
+        if [[ -n ${_prerun_conditionals:-} ]]
+        then
+            local _conditional=
+            for _conditional in ${_prerun_conditionals:-}
+            do
+                if Option_Is_Set "$(Unframe_Reframe "OPT_" "${_conditional}" "_")"
+                then
+                    eval "[[ -n \${$_option_array[PRERUN_${_conditional}]:-} ]] && echo \"\${$_option_array[PRERUN_${_conditional}]:-}\""
+                    _prerun_displayed=true
+                fi
+            done
+        fi
+        Is_True $_prerun_displayed || eval "[[ -n \${$_option_array[PRERUN]:-} ]] && echo \"\${$_option_array[PRERUN]:-}\""
+    fi
+done
+}
+
 Options_Warning ()
 {
 # identify any warnings and prepare a warning dialog string
@@ -273,6 +340,8 @@ do
         if Is_True $_warn_condition
         then
             eval echo \"\${$_option_array[WARNING]:-}\"
+        else
+            eval "[[ -n \${$_option_array[NONWARNING]:-} ]] && echo \"\${$_option_array[NONWARNING]:-}\""
         fi
     fi
 done
@@ -392,25 +461,27 @@ Normalize_To_List ()
 
 Ask_Auto_Action ()
 {
-# ASK_AUTO_SOURCE_=(
-# [LIST_NAME]='testlist'
-# [LIST_VALUE]='if no global list used via LIST_NAME, this can contain actual list source'
-# [QUERY_STRING]='string for query prompt ${_item}'
-# [FORCE_VALUE]='${FORCE}'
-# [DEFAULT_CHOICE]='false'
+# Ask_Auto_Action NAME_OF_SOURCE_ARRAY
+# example source array and code block:
 #
+# Unset_Array ASK_AUTO_SOURCE; ASK_AUTO_SOURCE_=(
+# [LIST_VAR_NAME]='name of global variable to use as source list'
+# [LIST_VALUE]='in lieu of LIST_VAR_NAME, contents of list as string'
+# [QUERY_STRING]='string for query prompt'
 # [ACTION_CMD]='echo "command if selected y/Y"'
-#
-# [EXECUTED_CMD]='echo "executed items include: $_executed"'
-# [SKIPPED_CMD]='echo "skipped items include: $_skipped_list"'
-# [FAILED_CMD]='echo "failed items include: $_failed_list"'
-#
-# [SKIPPED_RTN_NAME]='name_of_var_to_return_skipped_list'
-# [EXECUTED_RTN_NAME]='name_of_var_to_return_skipped_list'
-# [FAILED_RTN_NAME]='name_of_var_to_return_skipped_list'
-#
-# )
-# Ask_Auto_Action ASK_AUTO_SET_NAME_
+# [EXECUTED_CMD]='command to execute if ACTION_CMD executed successfully'
+# [SKIPPED_CMD]='command to execute if ACTION_CMD was skipped by user'
+# [FAILED_CMD]='command to execute if ACTION_CMD failed to execute successfully'
+# [EXECUTED_LIST_CMD]='command to execute after completing iterations, e.g.  a report on all items in list'
+# [SKIPPED_LIST_CMD]='command to execute after completing iterations, e.g.  a report on all items in list'
+# [FAILED_LIST_CMD]='command to execute after completing iterations, e.g.  a report on all items in list'
+# [EXECUTED_RTN_NAME]='name of global variable used to return value of this list'
+# [SKIPPED_RTN_NAME]='name of global variable used to return value of this list'
+# [FAILED_RTN_NAME]='name of global variable used to return value of this list'
+# [FORCE_VALUE]='${FORCE}'
+# [DEFAULT_CHOICE]='true'
+# ); Ask_Auto_Action ASK_AUTO_SET_NAME_
+
 local _source_set="${1}"
 
 local _item=
@@ -421,7 +492,12 @@ local _skipped_list=
 eval local _list_var_name=\"\${$_source_set[LIST_VAR_NAME]:-}\"
 if [[ -n ${_list_var_name:-} ]]
 then
-    local _list=\"\$\(echo \${$_list_var_name} \| Normalize_To_List\)\"
+    if Is_Array $_list_var_name
+    then
+        local _list="$(Array_To_List $_list_var_name)"
+    else
+        local _list="$(echo ${!_list_var_name} | Normalize_To_List)"
+    fi
 else
     #eval eval local _list=\$\(echo \${$_source_set[LIST_VALUE]} \| Normalize_To_List\)
     eval local _list=\$\(echo \${$_source_set[LIST_VALUE]} \| Normalize_To_List\)
@@ -443,6 +519,7 @@ eval eval "local _failed_rtn_name=\"\${$_source_set[FAILED_RTN_NAME]:-}\""
 Is_True ${_force} && _choice=${_default_choice} || _choice=
 for _item in $_list
 do
+    _hash=$(Hash_Of "$_item") # only used for overlay, but easier to do it once here
     if ! Is_True ${_force}; then
         Query "${_query_string}" _force && _choice=true || _choice=false
     fi
