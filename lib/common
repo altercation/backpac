@@ -111,7 +111,7 @@ Query ()
     while true
     do
         [[ -n ${2:-} ]] \
-            && local _prompt=" (y/n for this; Y/N for all remaining) " \
+            && local _prompt=" (y/n==this) (Y/N==all) " \
             || local _prompt=" (y/n) "
         read -p "${_prompt}" response
         case $response in
@@ -140,7 +140,6 @@ Unit_Report ()
     fi
 
     # add report string to report category string
-    #REPORT_[${_category#UNIT_}]+="$(echo ${_message} | fmt -uw ${COLUMNS:-72} )\n";
     REPORT_[${_category#UNIT_}]+="$(echo ${_message})\n";
 }
 
@@ -292,12 +291,15 @@ Options_Summary ()
 {
 # prepare option summary dialog string
 local _option_array
+local _string=
 for _option_array in ${!OPT_*}
 do
-    local _p="()"
+    local _p="${1:-()}"
     eval [[ -n \${$_option_array[SET]:-} ]] && _p="  "
-    eval echo \"${_p:0:1}-\${$_option_array[FLAG]%:}${_p:1:1}\\t\${$_option_array[ALERT]:-}\"
+    # eval echo \"${_p:0:1}-\${$_option_array[FLAG]%:}${_p:1:1}\\t\${$_option_array[ALERT]:-}\"
+    eval _string+=\"${_p:0:1}-\${$_option_array[FLAG]%:}${_p:1:1}\\t\${$_option_array[ALERT]:-}\\\n\"
 done
+echo -en "${_string}" | sort
 }
 
 Option_Is_Set ()
@@ -366,14 +368,10 @@ done
 
 Usage ()
 {
-    UI_Passive_Alert "\n${SCRIPTNAME:-0} options summary:\n"
-    local _option_array
-    for _option_array in ${!OPT_*}
-    do
-        local _p="  "
-        eval "eval echo -e \\\"${_p:0:1}-\${$_option_array[FLAG]%:}${_p:1:1}\\\t\${$_option_array[USAGE]:-}\\\""
-    done
-    [[ -n ${USAGE_SYSTEM_CONFIG:-} ]] && UI_Passive_Alert "${USAGE_SYSTEM_CONFIG:-}"
+    UI_Passive_Alert "\n$(Upper_Case "${SCRIPTNAME:-0} options summary:")\n${HR}"
+    local _option_summary="$(Options_Summary "  ")"
+    [[ -z ${_option_summary:-} ]] || UI_Passive_Alert "${_option_summary}"
+    [[ -n ${USAGE_SYSTEM_CONFIG:-} ]] && UI_Passive_Alert "${USAGE_CONFIG_STATE:-}"
     [[ -n ${USAGE_SUMMARY:-} ]] && UI_Passive_Alert "${USAGE_SUMMARY}"
 }
 

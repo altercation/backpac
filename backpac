@@ -111,79 +111,8 @@ AUR_HELPER=${AUR_HELPER:-packer}
 # COMMAND LINE OPTIONS, RUNTIME OPTION REPORT VALUES & HELP
 # ----------------------------------------------------------------------
 
-OPT_FORCE_=(
-[FLAG]='f'
-[STATE]='false'
-[STATE_SET]='true'
-[ALERT]='Force mode OFF; Prompt before file write operations.'
-[ALERT_SET]='Force mode ON; No prompts presented (CAUTION).'
-[USAGE]='Force all write operations; no prompts will be given.'
-[PRERUN]=''
-)
-OPT_FULL_FORCE_=(
-[FLAG]='F'
-[STATE]='false'
-[STATE_SET]='true'
-[ALERT]='Full Force mode OFF; No automatic uninstalls.'
-[ALERT_SET]='Full Force mode ON; Automatic uninstalls.'
-[USAGE]='DANGER: Force mode with automatic execution, NO-INITIAL PROMPT.'
-)
-OPT_GROUP_CURRENCY_CHECK_=(
-[FLAG]='G'
-[STATE]='true'
-[STATE_SET]='false'
-[ALERT]='Suppress group check OFF; Groups will be checked for currency.'
-[ALERT_SET]='Suppress group check ON; Groups will not be checked for currency.'
-[USAGE]='Suppress group currency check; Skip checking current group packages.'
-)
-OPT_OVERLAY_DIFF_DISPLAY_=(
-[FLAG]='d'
-[STATE]='false'
-[STATE_SET]='true'
-[ALERT]='Overlay file diff OFF; No file diff report will be displayed.'
-[ALERT_SET]='Overlay file diff ON; File diff report will be displayed.'
-[USAGE]='Overlay files will be diffed with system files and result displayed.'
-)
-OPT_GIT_UPDATE_=(
-[FLAG]='g'
-[STATE]='false'
-[STATE_SET]='true'
-[ALERT]='Git update OFF; No git push after config update.'
-[ALERT_SET]='Git update ON; Git push will occur after config update.'
-[USAGE]="Git commit and push ${SCRIPTNAME} config directory if it is a repository."
-)
-OPT_PACMAN_UPDATE_=(
-[FLAG]='y'
-[STATE]='false'
-[STATE_SET]='true'
-[ALERT]='Pacman update OFF; Package list will not be refreshed.'
-[ALERT_SET]='Pacman update ON; Package list will be downloaded.'
-[USAGE]='Update pacman package master list (pacman -Sy).'
-)
-OPT_CONFIG_DIRPATH_=(
-[FLAG]='p:'
-[STATE]="${CONFIG_DIRPATH_DEFAULT}"
-[STATE_SET]=''
-[ALERT]="Default ${SCRIPTNAME}: ${CONFIG_DIRPATH_DEFAULT}."
-[ALERT_SET]='Custom ${SCRIPTNAME}: ${CONFIG_DIRPATH}.'
-[USAGE]="Specify full path to a custom ${SCRIPTNAME} config directory."
-)
-OPT_SIMPLE_REPORT_=(
-[FLAG]='r'
-[STATE]='false'
-[STATE_SET]='true'
-[CONFLICTS]='CONFIG_UPDATE SYSTEM_UPDATE'
-[ALERT]='Simple Report OFF; Run with this ON to report with no system changes.'
-[ALERT_SET]='Simple Report ON; Report shown; no changes made to system.'
-[USAGE]="SAFELY Reports system and ${SCRIPTNAME} config state; no changes made."
-[PRERUN_CONDITIONALS]='FORCE FULL_FORCE'
-[PRERUN]='SIMPLE REPORT MODE:
-SAFELY Reports system and ${SCRIPTNAME} config state; no will be changes made.'
-[PRERUN_FORCE]=''
-[PRERUN_FULL_FORCE]=''
-)
 OPT_SYSTEM_UPDATE_=(
-[FLAG]='s'
+[FLAG]='S'
 [STATE]='false'
 [STATE_SET]='true'
 [CONFLICTS]='CONFIG_UPDATE'
@@ -208,7 +137,7 @@ OPT_SYSTEM_UPDATE_=(
 [PRERUN_FULL_FORCE]=''
 )
 OPT_CONFIG_UPDATE_=(
-[FLAG]='u'
+[FLAG]='U'
 [STATE]='false'
 [STATE_SET]='true'
 [ALERT]='${SCRIPTNAME} config update OFF; ${SCRIPTNAME} files will not be updated.'
@@ -224,8 +153,7 @@ OPT_CONFIG_UPDATE_=(
   will be optionally (prompted) added to the ${SCRIPTNAME} packages (and aur) list.
 
 * Overlay files listed in the ${SCRIPTNAME} overlay list will optionally 
-  (prompt) be updated from the current version on the live system and saved in
-  the overlay directory ${OVERLAY_DIRPATH}.'
+  (prompt) be updated from the current version on the live system and saved in the overlay directory ${OVERLAY_DIRPATH}.'
 [PRERUN_FORCE]='$(Upper_Case ${SCRIPTNAME}) UPDATE (FORCE) MODE will AUTOMATICALLY execute:
 
 * Packages in the ${SCRIPTNAME} config, but not installed on the system, will
@@ -235,12 +163,82 @@ OPT_CONFIG_UPDATE_=(
   will be automatically (no prompt) added to the ${SCRIPTNAME} packages (and aur) list.
 
 * Overlay files listed in the ${SCRIPTNAME} overlay list will automatically 
-  (no prompt) be updated from the current version on the live system and saved in
-  the overlay directory ${OVERLAY_DIRPATH}.'
+  (no prompt) be updated from the current version on the live system and saved in the overlay directory ${OVERLAY_DIRPATH}'
+[PRERUN_FULL_FORCE]=''
+)
+OPT_FORCE_=(
+[FLAG]='f'
+[STATE]='false'
+[STATE_SET]='true'
+[ALERT]='Force mode OFF; Prompt before file write operations.'
+[ALERT_SET]='Force mode ON; No prompts presented (CAUTION).'
+[USAGE]='Force all write operations; no prompts will be given.'
+[PRERUN]=''
+)
+OPT_FULL_FORCE_=(
+[FLAG]='F'
+[STATE]='false'
+[STATE_SET]='true'
+[ALERT]='Full Force mode OFF; No automatic uninstalls.'
+[ALERT_SET]='Full Force mode ON; Automatic uninstalls.'
+[USAGE]='DANGER: Force mode with automatic execution, NO-INITIAL PROMPT.'
+)
+OPT_GROUP_CURRENCY_CHECK_=(
+[FLAG]='g'
+[STATE]='true'
+[STATE_SET]='false'
+[ALERT]='Suppress group check OFF; Groups will be checked for currency.'
+[ALERT_SET]='Suppress group check ON; Groups will not be checked for currency.'
+[USAGE]='Suppress group currency check; Skip checking current group packages.'
+)
+OPT_OVERLAY_DIFF_DISPLAY_=(
+[FLAG]='d'
+[STATE]='false'
+[STATE_SET]='true'
+[ALERT]='Overlay file diff OFF; No file diff report will be displayed.'
+[ALERT_SET]='Overlay file diff ON; File diff report will be displayed.'
+[USAGE]='Overlay files will be diffed with system files and result displayed.'
+)
+OPT_GIT_UPDATE_=(
+[FLAG]='c'
+[STATE]='false'
+[STATE_SET]='true'
+[ALERT]='Git commit update OFF; No git commit/push after config update.'
+[ALERT_SET]='Git commit update ON; Git commit/push after config update.'
+[USAGE]="Git commit and push ${SCRIPTNAME} config directory if it is a repository."
+)
+OPT_PACMAN_UPDATE_=(
+[FLAG]='y'
+[STATE]='false'
+[STATE_SET]='true'
+[ALERT]='Pacman update OFF; Package list will not be refreshed.'
+[ALERT_SET]='Pacman update ON; Package list will be downloaded.'
+[USAGE]='Update pacman package master list (pacman -Sy).'
+)
+OPT_CONFIG_DIRPATH_=(
+[FLAG]='p:'
+[STATE]="${CONFIG_DIRPATH_DEFAULT}"
+[STATE_SET]=''
+[ALERT]="Default ${SCRIPTNAME}: ${CONFIG_DIRPATH_DEFAULT}."
+[ALERT_SET]='Custom ${SCRIPTNAME}: ${CONFIG_DIRPATH}.'
+[USAGE]="Specify full path to a custom ${SCRIPTNAME} config directory."
+)
+OPT_SIMPLE_REPORT_=(
+[FLAG]='R'
+[STATE]='false'
+[STATE_SET]='true'
+[CONFLICTS]='CONFIG_UPDATE SYSTEM_UPDATE'
+[ALERT]='Simple Report OFF; Run with this ON to report with no system changes.'
+[ALERT_SET]='Simple Report ON; Report shown; no changes made to system.'
+[USAGE]="SAFELY Reports system and ${SCRIPTNAME} config state; no changes made."
+[PRERUN_CONDITIONALS]='FORCE FULL_FORCE'
+[PRERUN]='SIMPLE REPORT MODE:
+SAFELY Reports system and ${SCRIPTNAME} config state; no will be changes made.'
+[PRERUN_FORCE]=''
 [PRERUN_FULL_FORCE]=''
 )
 OPT_BACKUP_MODE_=(
-[FLAG]='B'
+[FLAG]='b'
 [STATE]="${DEFAULT_BACKUP_MODE}"
 [STATE_SET]='none'
 [ALERT]='Backups ON; Files will be saved in place with backup suffix.'
@@ -257,7 +255,7 @@ OPT_HELP_=(
 [ALERT]='Display option and usage summary.'
 [USAGE]='${OPT_HELP_[ALERT]}'
 )
-USAGE_SYSTEM_CONFIG="\nSTATE SUMMARY:\n${HR}
+USAGE_CONFIG_STATE="\nSTATE SUMMARY:\n${HR}
 DEFAULT $(Upper_Case ${SCRIPTNAME}) CONFIG PATH: ${CONFIG_DIRPATH_DEFAULT} 
 Change with -${OPT_CONFIG_DIRPATH_[FLAG]} <custompath> or set ${CONFIG_DIRPATH_ENVVARNAME} in your environment.
 
@@ -266,12 +264,16 @@ Change with AUR_HELPER in your environment."
 USAGE_SUMMARY="\nUSAGE SUMMARY:\n${HR}
 ${SCRIPTNAME} -${OPT_SIMPLE_REPORT_[FLAG]}\tShow a report; no changes made to system (try this first!)
 ${SCRIPTNAME} -${OPT_CONFIG_UPDATE_[FLAG]}\tCreate a new or update existing ${SCRIPTNAME} config
-${SCRIPTNAME} -${OPT_CONFIG_UPDATE_[FLAG]}\tUpdate live system to match current ${SCRIPTNAME} config
+${SCRIPTNAME} -${OPT_SYSTEM_UPDATE_[FLAG]}\tUpdate live system to match current ${SCRIPTNAME} config
 
-Using -${OPT_FORCE_[FLAG]} will skip normal prompts prior to write operations. 
-Using -${OPT_FULL_FORCE_[FLAG]} will skip the initial prompt as well as all subsequent prompts.
+Adding -${OPT_FORCE_[FLAG]} will skip normal prompts prior to write operations. 
+Adding -${OPT_FULL_FORCE_[FLAG]} will skip the initial prompt as well as all subsequent prompts.
 
-See options summary above for other features or consult the ${SCRIPTNAME} man page using the command: man ${SCRIPTNAME}"
+FIRST RUN / AUTOMATIC UPDATE:\n${HR}
+${SCRIPTNAME} -${OPT_CONFIG_UPDATE_[FLAG]}${OPT_FORCE_[FLAG]}\tAutomatically create a ${SCRIPTNAME} config from system state.
+
+See options summary above for other features or consult the ${SCRIPTNAME} man page using the command: man ${SCRIPTNAME}
+"
 
 # ----------------------------------------------------------------------
 # EXECUTION SEQUENCE
@@ -334,7 +336,7 @@ fi
 # options summary and prerun alert
 local _option_summary="$(Options_Summary)"
 local _option_prerun="$(Options_Prerun)"
-[[ -z ${_option_summary:-} ]] || UI_Passive_Alert "\n$SCRIPTNAME\n\n${_option_summary}"
+[[ -z ${_option_summary:-} ]] || UI_Passive_Alert "\n$SCRIPTNAME\n${HR}\n${_option_summary}"
 [[ -z ${_option_prerun:-} ]] || Query "\n${_option_prerun}\n\nProceed?"
 }
 
@@ -847,53 +849,49 @@ Noforce_Alert () {
 }
 
 UI_Backup_Alert () {
-        UI_Passive_Alert "${*}"
         [[ "${BACKUP_MODE}" == "${DEFAULT_BACKUP_MODE}" ]] \
-            && UI_Passive_Alert " (backups will be made):" || UI_Passive_Alert ":"
+            && UI_Passive_Alert "$(echo ${*} "(backups will be made):")" \
+            || UI_Passive_Alert "$(echo ${*}):"
 }
 
     # MISSING FROM OVERLAY
     # -------------------------------------------------------------------------
     if [[ -n ${OVERLAY_MISS_OVER[*]:-} ]]; then
-        UI_Backup_Alert "COPY MISSING FILES?:\nthe following files haven't been saved to your ${SCRIPTNAME} config yet. Please choose whether to copy each item to the config overlay directory"
+        UI_Backup_Alert "\nCOPY MISSING FILES?\n${HR}
+        \nThe following files haven't been saved to your ${SCRIPTNAME} config 
+        yet. Please choose whether to copy each item to the config overlay 
+        directory"
 
         Unset_Array ASK_AUTO_SOURCE_; ASK_AUTO_SOURCE_=(
         [LIST_VAR_NAME]='OVERLAY_MISS_OVER'
 
-        [QUERY_STRING]='${_item}'
+        [QUERY_STRING]='\n${_item}\nCopy file?'
 
         [ACTION_CMD]='File_Copy_To_Overlay "${_hash}"'
         [DEFAULT_CHOICE]='true'
 
         [EXECUTED_CMD]='if [[ -z ${FILE_[${_hash},ATTR,OVER]} ]];
         then Update_Attribs "${_hash}";
-        Debug "aa";
-        Add_To_Array OVERLAY_GOOD "${_item} (new copy)";
+        Add_To_Array OVERLAY_GOOD "${_item} (NEW COPY)";
         Noforce_Alert "(copied; attributes set from system file)";
-        Debug "bb";
         else Add_To_Array OVERLAY_DIFF_ATTR "${_item}";
-        Debug "cc";
         Noforce_Alert "(copied; attributes differ, will prompt for resolution in a moment)";
-        Debug "dd";
         fi;
         Remove_From_Array OVERLAY_MISS_OVER "${_item}";'
 
-        [SKIPPED_CMD]='Noforce_Alert "(skipped)"; Swap_In_Array OVERLAY_MISS_OVER "${_item}" "${_item} (new copy skipped)"'
+        [SKIPPED_CMD]='Noforce_Alert "(skipped)"; Swap_In_Array OVERLAY_MISS_OVER "${_item}" "${_item} (NEW COPY SKIPPED)"'
 
-        [FAILED_CMD]='Noforce_Alert "(copy failed!)"; Swap_In_Array OVERLAY_MISS_OVER "${_item}" "${_item} (new copy failed)"'
+        [FAILED_CMD]='Noforce_Alert "(copy failed!)"; Swap_In_Array OVERLAY_MISS_OVER "${_item}" "${_item} (NEW COPY FAILED)"'
 
         [FORCE_VALUE]='${FORCE}'
 
         ); Ask_Auto_Action ASK_AUTO_SOURCE_;
     fi
 
-    Debug
-
     # DIFFERING ATTRIBUTES
     # -------------------------------------------------------------------------
     if [[ -n ${OVERLAY_DIFF_ATTR[*]:-} ]]; then
-        Debug
-        UI_Backup_Alert "UPDATE ATTRIBUTES?
+        UI_Backup_Alert "\nUPDATE ATTRIBUTES?\n${HR}
         \nThe following files differ in attributes between the system and 
         ${SCRIPTNAME} (contents match). Please choose whether to update each 
         item in your overlay directory"
@@ -901,21 +899,18 @@ UI_Backup_Alert () {
         Unset_Array ASK_AUTO_SOURCE_; ASK_AUTO_SOURCE_=(
         [LIST_VAR_NAME]='OVERLAY_DIFF_ATTR'
 
-        [QUERY_STRING]='${_item}
-        (OVERLAY:${FILE_[${_hash},ATTR,OVER]:-MISSING}) 
-        (SYSTEM:${FILE_[${_hash},ATTR,SYST]})
-        '
+        [QUERY_STRING]='\n${_item}\n(CURRENT IN OVERLAY:${FILE_[${_hash},ATTR,OVER]:-MISSING}) (NEW FROM SYSTEM:${FILE_[${_hash},ATTR,SYST]})\nUpdate attributes?'
 
         [ACTION_CMD]='Update_Attribs "${_hash}"'
         [DEFAULT_CHOICE]='true'
 
         [EXECUTED_CMD]='Noforce_Alert "(updated attributes)";
-        Add_To_Array OVERLAY_GOOD "${_item} (updated attributes)";
+        Add_To_Array OVERLAY_GOOD "${_item} (UPDATED ATTRIBUTES)";
         Remove_From_Array OVERLAY_DIFF_ATTR "${_item}";'
         [SKIPPED_CMD]=' Noforce_Alert "(skipped)";
-        Swap_In_Array OVERLAY_DIFF_ATTR "${_item}" "${_item} (update attributes skipped)"'
+        Swap_In_Array OVERLAY_DIFF_ATTR "${_item}" "${_item} (UPDATE ATTRIBUTES SKIPPED)"'
         [FAILED_CMD]='  Noforce_Alert "(update attributes failed!)";
-        Swap_In_Array OVERLAY_DIFF_ATTR "${_item}" "${_item} (update attributes failed!)"'
+        Swap_In_Array OVERLAY_DIFF_ATTR "${_item}" "${_item} (UPDATE ATTRIBUTES FAILED!)"'
 
         [FORCE_VALUE]='${FORCE}'
 
@@ -925,7 +920,7 @@ UI_Backup_Alert () {
     # DIFFERING CONTENT
     # -------------------------------------------------------------------------
     if [[ -n ${OVERLAY_DIFF_CONT[*]:-} ]]; then
-        UI_Backup_Alert "UPDATE FILE?\n
+        UI_Backup_Alert "\nUPDATE FILE?\n${HR}
         The following files differ in content between ${SCRIPTNAME} and the 
         system (attributes match). Please choose whether to update each item in 
         your overlay directory"
@@ -933,18 +928,18 @@ UI_Backup_Alert () {
         Unset_Array ASK_AUTO_SOURCE_; ASK_AUTO_SOURCE_=(
         [LIST_VAR_NAME]='OVERLAY_DIFF_CONT'
 
-        [QUERY_STRING]='${_item}'
+        [QUERY_STRING]='\n${_item}\nUpdate file?'
 
         [ACTION_CMD]='File_Copy_To_Overlay "${_hash}"'
         [DEFAULT_CHOICE]='true'
 
         [EXECUTED_CMD]='Noforce_Alert "(updated)";
-        Add_To_Array OVERLAY_GOOD "${_item} (updated content)"
+        Add_To_Array OVERLAY_GOOD "${_item} (UPDATED CONTENT)"
         Remove_From_Array OVERLAY_DIFF_CONT "${_item}";'
         [SKIPPED_CMD]=' Noforce_Alert "(skipped)";
-        Swap_In_Array OVERLAY_DIFF_CONT "${_item}" "${_item} (update content skipped)"'
+        Swap_In_Array OVERLAY_DIFF_CONT "${_item}" "${_item} (UPDATE CONTENT SKIPPED)"'
         [FAILED_CMD]='  Noforce_Alert "(update failed!)";
-        Swap_In_Array OVERLAY_DIFF_CONT "${_item}" "${_item} (update content failed!)"'
+        Swap_In_Array OVERLAY_DIFF_CONT "${_item}" "${_item} (UPDATE CONTENT FAILED!)"'
 
         [FORCE_VALUE]='${FORCE}'
 
@@ -954,7 +949,7 @@ UI_Backup_Alert () {
     # DIFFERING CONTENT & ATTRIBUTES
     # -------------------------------------------------------------------------
     if [[ -n ${OVERLAY_DIFF_CONT_ATTR[*]:-} ]]; then
-        UI_Backup_Alert "UPDATE FILE & ATTRIBUTES?
+        UI_Backup_Alert "\nUPDATE FILE & ATTRIBUTES?\n${HR}
         \nThe following files differ in content AND attributes between the 
         system and ${SCRIPTNAME}. Please choose whether to update each item in 
         your overlay directory"
@@ -962,21 +957,18 @@ UI_Backup_Alert () {
         Unset_Array ASK_AUTO_SOURCE_; ASK_AUTO_SOURCE_=(
         [LIST_VAR_NAME]='OVERLAY_DIFF_CONT_ATTR'
 
-        [QUERY_STRING]='${_item}
-        (OVERLAY:${FILE_[${_hash},ATTR,OVER]:-MISSING}) 
-        (SYSTEM:${FILE_[${_hash},ATTR,SYST]})
-        '
+        [QUERY_STRING]='\n${_item}\n(CURRENT IN OVERLAY:${FILE_[${_hash},ATTR,OVER]:-MISSING}) (NEW FROM SYSTEM:${FILE_[${_hash},ATTR,SYST]})\nUpdate file & attributes?'
 
         [ACTION_CMD]='File_Copy_To_Overlay "${_hash}" && Update_Attribs "${_hash}"'
         [DEFAULT_CHOICE]='true'
 
         [EXECUTED_CMD]='Noforce_Alert "(updated content & attributes)";
-        Add_To_Array PROCESSED_GOOD "${_item} (updated content & attributes)"
+        Add_To_Array PROCESSED_GOOD "${_item} (UPDATED CONTENT & ATTRIBUTES)"
         Remove_From_Array OVERLAY_DIFF_CONT_ATTR "${_item}";'
         [SKIPPED_CMD]=' Noforce_Alert "(skipped)";
-        Swap_In_Array OVERLAY_DIFF_CONT_ATTR "${_item}" "${_item} (update content & attributes skipped)"'
+        Swap_In_Array OVERLAY_DIFF_CONT_ATTR "${_item}" "${_item} (UPDATE CONTENT & ATTRIBUTES SKIPPED)"'
         [FAILED_CMD]='  Noforce_Alert "(update content & attributes failed!)";
-        Swap_In_Array OVERLAY_DIFF_CONT_ATTR "${_item}" "${_item} (update content & attributes failed!)"'
+        Swap_In_Array OVERLAY_DIFF_CONT_ATTR "${_item}" "${_item} (UPDATE CONTENT & ATTRIBUTES FAILED!)"'
 
         [FORCE_VALUE]='${FORCE}'
 
@@ -996,9 +988,9 @@ esac
 [[ -n ${OVERLAY_MISS_SYST[@]:-} ]] && Unit_Report "MISSING ON SYSTEM (PRESENT IN $(Upper_Case ${SCRIPTNAME}) CONFIG):\n $(Array_To_Report OVERLAY_MISS_SYST)"
 [[ -n ${OVERLAY_MISS_OVER[@]:-} ]] && Unit_Report "MISSING ON $(Upper_Case ${SCRIPTNAME}) CONFIG (PRESENT ON SYSTEM):\n $(Array_To_Report OVERLAY_MISS_OVER)"
 [[ -n ${OVERLAY_MISS_BOTH[@]:-} ]] && Unit_Report "MISSING ON BOTH SYSTEM AND $(Upper_Case ${SCRIPTNAME}) CONFIG:\n $(Array_To_Report OVERLAY_MISS_BOTH)"
-[[ -n ${OVERLAY_DIFF_ATTR[@]:-} ]] && Unit_Report "ATTRIBUTES DIFFER (OR MISSING) ON SYSTEM/$(Upper_Case ${SCRIPTNAME}) CONFIG:\n $(Array_To_Report OVERLAY_DIFF_ATTR)"
-[[ -n ${OVERLAY_DIFF_CONT[@]:-} ]] && Unit_Report "CONTENTS DIFFER ON SYSTEM/$(Upper_Case ${SCRIPTNAME}) CONFIG:\n $(Array_To_Report OVERLAY_DIFF_CONT)"
-[[ -n ${OVERLAY_DIFF_CONT_ATTR[@]:-} ]] && Unit_Report "ATTRIBS/CONTENTS DIFFER ON SYSTEM/$(Upper_Case ${SCRIPTNAME}) CONFIG:\n $(Array_To_Report OVERLAY_DIFF_CONT_ATTR)"
+[[ -n ${OVERLAY_DIFF_ATTR[@]:-} ]] && Unit_Report "ATTRIBUTES DIFFER (OR MISSING):\n $(Array_To_Report OVERLAY_DIFF_ATTR)"
+[[ -n ${OVERLAY_DIFF_CONT[@]:-} ]] && Unit_Report "CONTENTS DIFFER:\n $(Array_To_Report OVERLAY_DIFF_CONT)"
+[[ -n ${OVERLAY_DIFF_CONT_ATTR[@]:-} ]] && Unit_Report "ATTRIBS/CONTENTS DIFFER:\n $(Array_To_Report OVERLAY_DIFF_CONT_ATTR)"
 }
 
 UNIT_Report ()
@@ -1017,8 +1009,7 @@ then
         then
             UI_Passive_Alert "\n$(Upper_Case $_report_category | tr "_" " "):"
             UI_Passive_Alert "--------------------------------------------------------------------------------"
-            #UI_Passive_Alert "${REPORT_[${_report_category}]}"
-            echo -e "${REPORT_[${_report_category}]}"
+            UI_Passive_Alert "${REPORT_[${_report_category}]}"
         fi
     done
 fi
