@@ -1,5 +1,7 @@
 #!/bin/bash
 
+HR="--------------------------------------------------------------------------------"
+
 Debug () { echo -e ">>> DEBUG: EXECUTING ${FUNCNAME[1]} AT LINE ${BASH_LINENO[0]}${*:+ >>> }${*:-}"; }
 
 Hash_Of () { echo -n "${1}" | md5sum | awk '{print $1}'; }
@@ -10,8 +12,16 @@ Is_False () { case $(Lower_Case ${1:-}) in false|no|0|n) return 0 ;; *) return 1
 
 # takes variable name to check
 Is_Array () { [[ -n ${1:-} ]] && echo "$(declare)" | egrep -q "^${1}=\(" || return 1; }
-Unset_Array () { eval "local _i; for _i in \"\${!${1}[@]}\"; do unset ${1}[\$_i]; done;"; }
+Unset_Array () { eval "local _i; for _i in \"\${!${1}[@]}\"; do unset ${1}[\$_i]; done"; }
 Add_To_Array () { local _array="${1}" _val="${2}"; declare -ga "$_array"; eval "$_array[\${#$_array[*]}]=\"\${_val}\""; }
+Clone_Array ()
+{
+    local _source_array_name="${1}"
+    local _new_array_name="${2}"
+    Unset_Array ${_new_array_name}
+    declare -a ${_new_array_name}
+    eval "local _i; for _i in \"\${!${_source_array_name}[@]}\"; do ${_new_array_name}[\$_i]=\"\${$_source_array_name[\$_i]}\"; done;"
+}
 
 Upper_Case () { echo -n "$*" | tr '[:lower:]' '[:upper:]'; }
 Lower_Case () { echo -n "$*" | tr '[:upper:]' '[:lower:]'; }
@@ -257,16 +267,19 @@ do
     eval local _test_option_is_set=\"\${$_option_array[SET]:-}\"
     if [[ -n ${_test_option_is_set} ]]
     then
-        eval local _conflict_name=\"\${$_option_array[CONFLICTS]:-}\"
-        [[ -z ${_conflict_name} ]] && _conflict_value=false \
-        || eval local _conflict_value=\"\${$_conflict_name}\"
-        if Is_True ${_conflict_value}
-        then
-            eval local _warning=\"Cannot use -\${OPT_${_conflict_name}_[FLAG]} \
-            and -\${$_option_array[FLAG]} command line options simultaneously.\"
-            UI_Passive_Warning "$(echo ${_warning})\n"
-            exit 0
-        fi
+        eval local _conflict_names=\"\${$_option_array[CONFLICTS]:-}\"
+        for _conflict_name in $_conflict_names
+        do
+            [[ -z ${_conflict_name} ]] && _conflict_value=false \
+            || eval local _conflict_value=\"\${$_conflict_name}\"
+            if Is_True ${_conflict_value}
+            then
+                eval local _warning=\"Cannot use -\${OPT_${_conflict_name}_[FLAG]} \
+                and -\${$_option_array[FLAG]} command line options simultaneously.\"
+                UI_Passive_Warning "$(echo ${_warning})\n"
+                exit 0
+            fi
+        done
     fi
 done
 }
@@ -354,12 +367,10 @@ Usage ()
     for _option_array in ${!OPT_*}
     do
         local _p="  "
-        eval echo -e \"${_p:0:1}-\${$_option_array[FLAG]%:}${_p:1:1}\\t\${$_option_array[USAGE]:-}\"
+        eval "eval echo -e \\\"${_p:0:1}-\${$_option_array[FLAG]%:}${_p:1:1}\\\t\${$_option_array[USAGE]:-}\\\""
     done
-    UI_Passive_Alert "\n${SCRIPTNAME:-0} current configuration:"
-    UI_Passive_Alert "${USAGE_SYSTEM_CONFIG:-}"
-    UI_Passive_Alert "\n${SCRIPTNAME:-0} usage:"
-    UI_Passive_Alert "${USAGE_SUMMARY}"
+    [[ -n ${USAGE_SYSTEM_CONFIG:-} ]] && UI_Passive_Alert "${USAGE_SYSTEM_CONFIG:-}"
+    [[ -n ${USAGE_SUMMARY:-} ]] && UI_Passive_Alert "${USAGE_SUMMARY}"
 }
 
 _Set_Op_Precheck ()
@@ -503,15 +514,15 @@ else
     eval local _list=\$\(echo \${$_source_set[LIST_VALUE]} \| Normalize_To_List\)
 fi
 eval local _query_string=\"\${$_source_set[QUERY_STRING]}\"
-eval eval local _force=\"\${$_source_set[FORCE_VALUE]}\"
+eval eval local _force=\"\${$_source_set[FORCE_VALUE]:-false}\"
 eval local _default_choice=\"\${$_source_set[DEFAULT_CHOICE]}\"
-_action_command   () { eval eval \${$_source_set[ACTION_CMD]}; }
-_executed_command () { eval eval \${$_source_set[EXECUTED_CMD]}; }
-_skipped_command  () { eval eval \${$_source_set[SKIPPED_CMD]}; }
-_failed_command   () { eval eval \${$_source_set[FAILED_CMD]}; }
-_executed_list_command () { eval eval \${$_source_set[EXECUTED_LIST_CMD]}; }
-_skipped_list_command  () { eval eval \${$_source_set[SKIPPED_LIST_CMD]}; }
-_failed_list_command   () { eval eval \${$_source_set[FAILED_LIST_CMD]}; }
+_action_command   () { eval eval \${$_source_set[ACTION_CMD]:-:}; }
+_executed_command () { eval eval \${$_source_set[EXECUTED_CMD]:-:}; }
+_skipped_command  () { eval eval \${$_source_set[SKIPPED_CMD]:-:}; }
+_failed_command   () { eval eval \${$_source_set[FAILED_CMD]:-:}; }
+_executed_list_command () { eval eval \${$_source_set[EXECUTED_LIST_CMD]:-:}; }
+_skipped_list_command  () { eval eval \${$_source_set[SKIPPED_LIST_CMD]:-:}; }
+_failed_list_command   () { eval eval \${$_source_set[FAILED_LIST_CMD]:-:}; }
 eval eval "local _skipped_rtn_name=\"\${$_source_set[SKIPPED_RTN_NAME]:-}\""
 eval eval "local _executed_rtn_name=\"\${$_source_set[EXECUTED_RTN_NAME]:-}\""
 eval eval "local _failed_rtn_name=\"\${$_source_set[FAILED_RTN_NAME]:-}\""
