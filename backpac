@@ -777,8 +777,14 @@ esac
 UNIT_Overlay ()
 {
 
+# TODO: add garbage collection. when files present in overlay.d but not in 
+# overlay list, there should be a prompt to remove
+
 # OVERLAY FILE CHECK
 # ----------------------------------------------------------------------
+Noforce_Alert () { Is_True ${FORCE} || UI_Passive_Alert "${*}"; }
+UI_Backup_Alert ()
+{ [[ "${BACKUP_MODE}" == "${DEFAULT_BACKUP_MODE}" ]] && UI_Passive_Alert "$(echo ${*} "(backups will be made):")" || UI_Passive_Alert "$(echo ${*}):"; }
 
 Read_File_Lines_To_Array "${OVERLAY_FILEPATH}" OVERLAY_FILES_ARRAY
 
@@ -793,9 +799,13 @@ fi
 Unit_Report "OVERLAY FILES (${OVERLAY_FILEPATH})\n"
 DEFAULT_ATTRIBS="644 root root" # used only if we have a snapshot file but no system file and no attribs are listed
 
+#OVERLAY_FILES_ACTUAL="$(ls -d -1 ${OVERLAY_DIRPATH}/**/*)"
+#Debug ">>>>OVERLAY_FILES_ACTUAL\n${OVERLAY_FILES_ACTUAL}"
+
 _line_num=0
 while true
 do
+
     # bail if we're past the end of the array
     [[ $_line_num == ${#OVERLAY_FILES_ARRAY[@]} ]] && break
 
@@ -804,7 +814,8 @@ do
     local _path="$(Swap_In_Escaped_Spaces $(echo -n $_line | awk '{print $1}'))"
     local _path_hash="$(Hash_Of "${_path}")"
 
-    FILEHASH_[${_path_hash}]="${_path}" # TODO: remove if unnecessary
+    #FILEHASH_[${_path_hash}]="${_path}" # TODO: remove if unnecessary
+    Add_To_Array FILE_HASHLIST "${_path_hash}"
     FILE_[${_path_hash},PATH,SYST]="${_path}" # unnecessary?
     FILE_[${_path_hash},PATH,OVER]="$OVERLAY_DIRPATH/${_path#/}"
     FILE_[${_path_hash},ATTR,OVER]="$(echo -n $_line | awk '{print $2,$3,$4}' | sed 's/^\s*\(.*\)\s*/\1/')"
@@ -824,7 +835,20 @@ do
     fi
 
     let "_line_num+=1"
+
+    #OVERLAY_FILES_ACTUAL="$(Set_Op_Difference "${OVERLAY_FILES_ACTUAL}" "${FILE_[$_path_hash,PATH,OVER]}")"
+
 done
+
+# GARBAGE COLLECTION (items in overlay directory but not in overlay list)
+#OVERLAY_FILES_ACTUAL="$(ls -d -1 ${OVERLAY_DIRPATH}/**/*)"
+#OVERLAY_FILES_LIST="$(Array_To_List OVERLAY_FILES_ARRAY)"
+#OVERLAY_GARBAGE="$(Set_Op_Difference "${OVERLAY_FILES_LIST}" "${OVERLAY_FILES_ACTUAL}")"
+#echo "GARBAGE: ${OVERLAY_GARBAGE}"
+#exit
+
+#Debug "OVERLAY_FILES_ACTUAL\n${OVERLAY_FILES_ACTUAL}"
+#exit
 
 case $MODE in
 
@@ -833,26 +857,18 @@ REPORT)
 
 CONFIG)
  
-File_Copy_To_Overlay () {
-    local _path_hash="${1}";
-    install -CD --backup=${BACKUP_MODE} -S${BACKUP_SUFFIX} "${FILE_[${_path_hash},PATH,SYST]}" "${FILE_[${_path_hash},PATH,OVER]}"
-}
+    File_Install () {
+        local _path_hash="${1}";
+        install -CD --backup=${BACKUP_MODE} -S${BACKUP_SUFFIX} "${FILE_[${_path_hash},PATH,SYST]}" "${FILE_[${_path_hash},PATH,OVER]}"
+    }
 
-Update_Attribs () {
-    local _path_hash="${1}";
-    FILE_[${_path_hash},ATTR,OVER,PREV]=${FILE_[${_path_hash},ATTR,OVER]};
-    FILE_[${_path_hash},ATTR,OVER]=${FILE_[${_path_hash},ATTR,SYST]}
-}
+    Update_Attribs () {
+        local _path_hash="${1}";
+        FILE_[${_path_hash},ATTR,OVER,PREV]=${FILE_[${_path_hash},ATTR,OVER]};
+        FILE_[${_path_hash},ATTR,OVER]=${FILE_[${_path_hash},ATTR,SYST]}
+    }
 
-Noforce_Alert () {
-    Is_True ${FORCE} || UI_Passive_Alert "${*}"
-}
-
-UI_Backup_Alert () {
-        [[ "${BACKUP_MODE}" == "${DEFAULT_BACKUP_MODE}" ]] \
-            && UI_Passive_Alert "$(echo ${*} "(backups will be made):")" \
-            || UI_Passive_Alert "$(echo ${*}):"
-}
+    CHANGE_MADE=false
 
     # MISSING FROM OVERLAY
     # -------------------------------------------------------------------------
@@ -867,20 +883,25 @@ UI_Backup_Alert () {
 
         [QUERY_STRING]='\n${_item}\nCopy file?'
 
-        [ACTION_CMD]='File_Copy_To_Overlay "${_hash}"'
+        [ACTION_CMD]='File_Install "${_hash}"'
         [DEFAULT_CHOICE]='true'
 
-        [EXECUTED_CMD]='if [[ -z ${FILE_[${_hash},ATTR,OVER]} ]];
-        then Update_Attribs "${_hash}";
-        Add_To_Array OVERLAY_GOOD "${_item} (NEW COPY)";
-        Noforce_Alert "(copied; attributes set from system file)";
-        else Add_To_Array OVERLAY_DIFF_ATTR "${_item}";
-        Noforce_Alert "(copied; attributes differ, will prompt for resolution in a moment)";
+        [EXECUTED_CMD]='if [[ -z ${FILE_[${_hash},ATTR,OVER]} ]] ; then
+            Update_Attribs "${_hash}";
+            Add_To_Array OVERLAY_GOOD "${_item} (NEW COPY; ATTRIBUTES SET FROM SYSTEM)";
+            Noforce_Alert "(copied; attributes set from system file)";
+        elif [[ "${FILE_[${_hash},ATTR,OVER]}" == "${FILE_[${_hash},ATTR,SYST]}" ]]; then
+            Update_Attribs "${_hash}";
+            Add_To_Array OVERLAY_GOOD "${_item} (NEW COPY; ATTRIBUTES MATCHED)";
+            Noforce_Alert "(copied; attributes set from system file)";
+        else
+            Add_To_Array OVERLAY_DIFF_ATTR "${_item}";
+            Noforce_Alert "(copied; attributes differ, will prompt for resolution in a moment)";
+            FILE_[${_hash},NEWCOPY_REPORT]="NEW COPY; ";
         fi;
-        Remove_From_Array OVERLAY_MISS_OVER "${_item}";'
-
+        Remove_From_Array OVERLAY_MISS_OVER "${_item}";
+        CHANGE_MADE=true;'
         [SKIPPED_CMD]='Noforce_Alert "(skipped)"; Swap_In_Array OVERLAY_MISS_OVER "${_item}" "${_item} (NEW COPY SKIPPED)"'
-
         [FAILED_CMD]='Noforce_Alert "(copy failed!)"; Swap_In_Array OVERLAY_MISS_OVER "${_item}" "${_item} (NEW COPY FAILED)"'
 
         [FORCE_VALUE]='${FORCE}'
@@ -905,8 +926,9 @@ UI_Backup_Alert () {
         [DEFAULT_CHOICE]='true'
 
         [EXECUTED_CMD]='Noforce_Alert "(updated attributes)";
-        Add_To_Array OVERLAY_GOOD "${_item} (UPDATED ATTRIBUTES)";
-        Remove_From_Array OVERLAY_DIFF_ATTR "${_item}";'
+        Add_To_Array OVERLAY_GOOD "${_item} (${FILE_[${_hash},NEWCOPY_REPORT]:-}UPDATED ATTRIBUTES)";
+        Remove_From_Array OVERLAY_DIFF_ATTR "${_item}";
+        CHANGE_MADE=true;'
         [SKIPPED_CMD]=' Noforce_Alert "(skipped)";
         Swap_In_Array OVERLAY_DIFF_ATTR "${_item}" "${_item} (UPDATE ATTRIBUTES SKIPPED)"'
         [FAILED_CMD]='  Noforce_Alert "(update attributes failed!)";
@@ -930,12 +952,13 @@ UI_Backup_Alert () {
 
         [QUERY_STRING]='\n${_item}\nUpdate file?'
 
-        [ACTION_CMD]='File_Copy_To_Overlay "${_hash}"'
+        [ACTION_CMD]='File_Install "${_hash}"'
         [DEFAULT_CHOICE]='true'
 
         [EXECUTED_CMD]='Noforce_Alert "(updated)";
         Add_To_Array OVERLAY_GOOD "${_item} (UPDATED CONTENT)"
-        Remove_From_Array OVERLAY_DIFF_CONT "${_item}";'
+        Remove_From_Array OVERLAY_DIFF_CONT "${_item}";
+        CHANGE_MADE=true;'
         [SKIPPED_CMD]=' Noforce_Alert "(skipped)";
         Swap_In_Array OVERLAY_DIFF_CONT "${_item}" "${_item} (UPDATE CONTENT SKIPPED)"'
         [FAILED_CMD]='  Noforce_Alert "(update failed!)";
@@ -959,12 +982,13 @@ UI_Backup_Alert () {
 
         [QUERY_STRING]='\n${_item}\n(CURRENT IN OVERLAY:${FILE_[${_hash},ATTR,OVER]:-MISSING}) (NEW FROM SYSTEM:${FILE_[${_hash},ATTR,SYST]})\nUpdate file & attributes?'
 
-        [ACTION_CMD]='File_Copy_To_Overlay "${_hash}" && Update_Attribs "${_hash}"'
+        [ACTION_CMD]='File_Install "${_hash}" && Update_Attribs "${_hash}"'
         [DEFAULT_CHOICE]='true'
 
         [EXECUTED_CMD]='Noforce_Alert "(updated content & attributes)";
         Add_To_Array PROCESSED_GOOD "${_item} (UPDATED CONTENT & ATTRIBUTES)"
-        Remove_From_Array OVERLAY_DIFF_CONT_ATTR "${_item}";'
+        Remove_From_Array OVERLAY_DIFF_CONT_ATTR "${_item}";
+        CHANGE_MADE=true;'
         [SKIPPED_CMD]=' Noforce_Alert "(skipped)";
         Swap_In_Array OVERLAY_DIFF_CONT_ATTR "${_item}" "${_item} (UPDATE CONTENT & ATTRIBUTES SKIPPED)"'
         [FAILED_CMD]='  Noforce_Alert "(update content & attributes failed!)";
@@ -975,12 +999,164 @@ UI_Backup_Alert () {
         ); Ask_Auto_Action ASK_AUTO_SOURCE_;
     fi
 
+    # WRITE OVERLAY FILE
+    if Is_True ${CHANGE_MADE}
+    then
+        local _hash
+        local _overlay_file_list=
+        for _hash in "${FILE_HASHLIST[@]}";
+        do
+            _overlay_file_list+="${FILE_[$_hash,PATH,SYST]} ${FILE_[$_hash,ATTR,OVER]}\n";
+        done
+        echo -e "${_overlay_file_list}" | sort > "${TMPDIR}/${OVERLAY_FILENAME}"
+        install -CD --backup=${BACKUP_MODE} -S${BACKUP_SUFFIX} "${TMPDIR}/${OVERLAY_FILENAME}" "${OVERLAY_FILEPATH}" \
+        && MODE_FINAL="SUCCESSFULLY UPDATED OVERLAY FILE:\n ${OVERLAY_FILEPATH}\n" \
+        || MODE_FINAL="FAILED TO UPDATE OVERLAY FILE!\n ${OVERLAY_FILEPATH}\n"
+    else
+        MODE_FINAL="NO CHANGES MADE; OVERLAY FILE NOT UPDATED:\n ${OVERLAY_FILEPATH}\n"
+    fi
+
 ;;
 SYSTEM)
-File_Restore () {
-    local _path=${1};
-    install -CD --backup=${BACKUP_MODE} -S${BACKUP_SUFFIX} -g${_group} -o${_owner} -m${_mode} "$OVERLAY_DIRPATH/${_path#/}" "$_path";
-}
+
+    Update_Attribs () {
+        local _path_hash="${1}";
+        local _target_path="${FILE_[${_path_hash},PATH,SYST]}"
+        local _attribs=(${FILE_[${_path_hash},ATTR,OVER]})
+        local _mode=${_attribs[0]}
+        local _owner=${_attribs[1]}
+        local _group=${_attribs[2]}
+        sudo chmod ${_mode} ${_target_path}
+        sudo chown ${_owner}:${_group} ${_target_path}
+    }
+
+    File_Install () {
+        local _path_hash="${1}";
+        local _source_path="${FILE_[${_path_hash},PATH,OVER]}"
+        local _target_path="${FILE_[${_path_hash},PATH,SYST]}"
+        local _attribs=(${FILE_[${_path_hash},ATTR,OVER]})
+        local _mode=${_attribs[0]:+-m}${_attribs[0]:-}
+        local _owner=${_attribs[1]:+-o}${_attribs[1]:-}
+        local _group=${_attribs[2]:+-g}${_attribs[2]:-}
+        sudo install -CD --backup=${BACKUP_MODE} -S${BACKUP_SUFFIX} ${_mode} ${_owner} ${_group} "${_source_path}" "${_target_path}"
+    }
+
+    # MISSING FROM SYSTEM
+    # -------------------------------------------------------------------------
+    if [[ -n ${OVERLAY_MISS_SYST[*]:-} ]]; then
+        UI_Backup_Alert "\nCOPY MISSING FILES?\n${HR}
+        \nThe following files are in your ${SCRIPTNAME} config overlay 
+        directory but not yet installed on your system. Please choose whether 
+        to install each item to the live system."
+
+        Unset_Array ASK_AUTO_SOURCE_; ASK_AUTO_SOURCE_=(
+        [LIST_VAR_NAME]='OVERLAY_MISS_SYST'
+
+        [QUERY_STRING]='\n${_item}\nInstall file?'
+
+        [ACTION_CMD]='File_Install "${_hash}"'
+        [DEFAULT_CHOICE]='true'
+
+        [EXECUTED_CMD]='Add_To_Array OVERLAY_GOOD "${_item} (NEW FILE INSTALLED TO SYSTEM)";
+        Remove_From_Array OVERLAY_MISS_SYST "${_item}";
+        CHANGE_MADE=true;'
+        [SKIPPED_CMD]='Noforce_Alert "(skipped)"; Swap_In_Array OVERLAY_MISS_SYST "${_item}" "${_item} (INSTALL SYSTEM FILE SKIPPED)"'
+        [FAILED_CMD]='Noforce_Alert "(copy failed!)"; Swap_In_Array OVERLAY_MISS_SYST "${_item}" "${_item} (INSTALL SYSTEM FILE FAILED)"'
+
+        [FORCE_VALUE]='${FORCE}'
+
+        ); Ask_Auto_Action ASK_AUTO_SOURCE_;
+    fi
+
+    # DIFFERING ATTRIBUTES
+    # -------------------------------------------------------------------------
+    if [[ -n ${OVERLAY_DIFF_ATTR[*]:-} ]]; then
+        UI_Backup_Alert "\nUPDATE ATTRIBUTES?\n${HR}
+        \nThe following files differ in attributes between the system and 
+        ${SCRIPTNAME} (contents match). Please choose whether to update each 
+        file's attributes on the live system"
+
+        Unset_Array ASK_AUTO_SOURCE_; ASK_AUTO_SOURCE_=(
+        [LIST_VAR_NAME]='OVERLAY_DIFF_ATTR'
+
+        [QUERY_STRING]='\n${_item}\n(CURRENT ON SYSTEM:${FILE_[${_hash},ATTR,SYST]}) (NEW FROM OVERLAY:${FILE_[${_hash},ATTR,OVER]:-MISSING}) \nUpdate attributes?'
+        [ACTION_CMD]='Update_Attribs "${_hash}"'
+        [DEFAULT_CHOICE]='true'
+
+        [EXECUTED_CMD]='Noforce_Alert "(updated attributes)";
+        Add_To_Array OVERLAY_GOOD "${_item} (${FILE_[${_hash},NEWCOPY_REPORT]:-}UPDATED SYSTEM FILE ATTRIBUTES)";
+        Remove_From_Array OVERLAY_DIFF_ATTR "${_item}";
+        CHANGE_MADE=true;'
+        [SKIPPED_CMD]=' Noforce_Alert "(skipped)";
+        Swap_In_Array OVERLAY_DIFF_ATTR "${_item}" "${_item} (UPDATE SYSTEM FILE ATTRIBUTES SKIPPED)"'
+        [FAILED_CMD]='  Noforce_Alert "(update attributes failed!)";
+        Swap_In_Array OVERLAY_DIFF_ATTR "${_item}" "${_item} (UPDATE SYSTEM FILE ATTRIBUTES FAILED!)"'
+
+        [FORCE_VALUE]='${FORCE}'
+
+        ); Ask_Auto_Action ASK_AUTO_SOURCE_;
+    fi
+
+    # DIFFERING CONTENT
+    # -------------------------------------------------------------------------
+    if [[ -n ${OVERLAY_DIFF_CONT[*]:-} ]]; then
+        UI_Backup_Alert "\nUPDATE FILE?\n${HR}
+        The following files differ in content between ${SCRIPTNAME} and the 
+        system (attributes match). Please choose whether to update each item in 
+        your overlay directory"
+
+        Unset_Array ASK_AUTO_SOURCE_; ASK_AUTO_SOURCE_=(
+        [LIST_VAR_NAME]='OVERLAY_DIFF_CONT'
+
+        [QUERY_STRING]='\n${_item}\nUpdate file?'
+
+        [ACTION_CMD]='File_Install "${_hash}"'
+        [DEFAULT_CHOICE]='true'
+
+        [EXECUTED_CMD]='Noforce_Alert "(updated)";
+        Add_To_Array OVERLAY_GOOD "${_item} (UPDATED SYSTEM FILE CONTENT)"
+        Remove_From_Array OVERLAY_DIFF_CONT "${_item}";
+        CHANGE_MADE=true;'
+        [SKIPPED_CMD]=' Noforce_Alert "(skipped)";
+        Swap_In_Array OVERLAY_DIFF_CONT "${_item}" "${_item} (UPDATE SYSTEM FILE CONTENT SKIPPED)"'
+        [FAILED_CMD]='  Noforce_Alert "(update failed!)";
+        Swap_In_Array OVERLAY_DIFF_CONT "${_item}" "${_item} (UPDATE SYSTEM FILE CONTENT FAILED!)"'
+
+        [FORCE_VALUE]='${FORCE}'
+
+        ); Ask_Auto_Action ASK_AUTO_SOURCE_;
+    fi
+
+    # DIFFERING CONTENT & ATTRIBUTES
+    # -------------------------------------------------------------------------
+    if [[ -n ${OVERLAY_DIFF_CONT_ATTR[*]:-} ]]; then
+        UI_Backup_Alert "\nUPDATE FILE & ATTRIBUTES?\n${HR}
+        \nThe following files differ in content AND attributes between the 
+        system and ${SCRIPTNAME}. Please choose whether to update each item in 
+        your overlay directory"
+
+        Unset_Array ASK_AUTO_SOURCE_; ASK_AUTO_SOURCE_=(
+        [LIST_VAR_NAME]='OVERLAY_DIFF_CONT_ATTR'
+
+        [QUERY_STRING]='\n${_item}\n(CURRENT IN OVERLAY:${FILE_[${_hash},ATTR,OVER]:-MISSING}) (NEW FROM SYSTEM:${FILE_[${_hash},ATTR,SYST]})\nUpdate file & attributes?'
+
+        [ACTION_CMD]='File_Install "${_hash}" && Update_Attribs "${_hash}"'
+        [DEFAULT_CHOICE]='true'
+
+        [EXECUTED_CMD]='Noforce_Alert "(updated content & attributes)";
+        Add_To_Array PROCESSED_GOOD "${_item} (UPDATED SYSTEM FILE CONTENT & ATTRIBUTES)"
+        Remove_From_Array OVERLAY_DIFF_CONT_ATTR "${_item}";
+        CHANGE_MADE=true;'
+        [SKIPPED_CMD]=' Noforce_Alert "(skipped)";
+        Swap_In_Array OVERLAY_DIFF_CONT_ATTR "${_item}" "${_item} (UPDATE SYSTEM FILE CONTENT & ATTRIBUTES SKIPPED)"'
+        [FAILED_CMD]='  Noforce_Alert "(update content & attributes failed!)";
+        Swap_In_Array OVERLAY_DIFF_CONT_ATTR "${_item}" "${_item} (UPDATE SYSTEM FILE CONTENT & ATTRIBUTES FAILED!)"'
+
+        [FORCE_VALUE]='${FORCE}'
+
+        ); Ask_Auto_Action ASK_AUTO_SOURCE_;
+    fi
+
 ;;
 esac
 
@@ -991,6 +1167,8 @@ esac
 [[ -n ${OVERLAY_DIFF_ATTR[@]:-} ]] && Unit_Report "ATTRIBUTES DIFFER (OR MISSING):\n $(Array_To_Report OVERLAY_DIFF_ATTR)"
 [[ -n ${OVERLAY_DIFF_CONT[@]:-} ]] && Unit_Report "CONTENTS DIFFER:\n $(Array_To_Report OVERLAY_DIFF_CONT)"
 [[ -n ${OVERLAY_DIFF_CONT_ATTR[@]:-} ]] && Unit_Report "ATTRIBS/CONTENTS DIFFER:\n $(Array_To_Report OVERLAY_DIFF_CONT_ATTR)"
+[[ -n ${OVERLAY_GARBAGE:-} ]] && Unit_Report "GARBAGE COLLECTION (ITEMS IN OVERLAY DIRECTORY, NOT IN OVERLAY LIST)\n${OVERLAY_GARBAGE}"
+[[ -n ${MODE_FINAL:-} ]] && Unit_Report "${MODE_FINAL}"
 }
 
 UNIT_Report ()
