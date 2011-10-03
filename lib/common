@@ -14,13 +14,17 @@ Is_False () { case $(Lower_Case ${1:-}) in false|no|0|n) return 0 ;; *) return 1
 Is_Array () { [[ -n ${1:-} ]] && echo "$(declare)" | egrep -q "^${1}=\(" || return 1; }
 Unset_Array () { eval "local _i; for _i in \"\${!${1}[@]}\"; do unset ${1}[\$_i]; done"; }
 Add_To_Array () { local _array="${1}" _val="${2}"; declare -ga "$_array"; eval "$_array[\${#$_array[*]}]=\"\${_val}\""; }
-Clone_Array ()
+Remove_From_Array ()
 {
-    local _source_array_name="${1}"
-    local _new_array_name="${2}"
-    Unset_Array ${_new_array_name}
-    declare -a ${_new_array_name}
-    eval "local _i; for _i in \"\${!${_source_array_name}[@]}\"; do ${_new_array_name}[\$_i]=\"\${$_source_array_name[\$_i]}\"; done;"
+    local _a="${1}" # array name
+    local _v="${2}" # remove value
+    #eval "declare -a _t=\(\"\${$_a[@]}\"\)" # temporary array
+    #eval "local _i; for _i in \"\${!${_a}[@]}\"; do [[ \"\${${_a}[\$_i]}\" != \"\${_v}\" ]] || unset ${_a}[\$_i]; done;"
+    eval "local _i; for _i in \"\${!${_a}[@]}\"; do [[ \"\${${_a}[\$_i]}\" != \"\${_v}\" ]] || ${_a}[\$_i]=; done;"
+}
+Swap_In_Array ()
+{
+    eval "local _i; for _i in \"\${!${1}[@]}\"; do [[ \"\${${1}[\$_i]}\" != \"\${2}\" ]] || ${1}[\$_i]="\${3}"; done;"
 }
 
 Upper_Case () { echo -n "$*" | tr '[:lower:]' '[:upper:]'; }
@@ -81,8 +85,8 @@ Array_To_Report ()
     do
         eval [[ \$_line_num == \${#$_arrayname[@]} ]] && break
         #eval echo "\${$_arrayname[$_line_num]}" | sed "s/\\/\\\\/g"
-        eval _line="\${$_arrayname[$_line_num]}"
-        echo "${_line}\n"
+        eval _line="\${$_arrayname[$_line_num]:-}"
+        [[ -z ${_line} ]] || echo "${_line}\n"
         let "_line_num+=1"
     done
 }

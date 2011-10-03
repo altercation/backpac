@@ -830,13 +830,9 @@ REPORT)
 ;;
 
 CONFIG)
-
-Unit_Report "FOLLOWING CHANGES TO OVERLAY:"
-Unit_Report "$HR"
-
+ 
 File_Copy_To_Overlay () {
     local _path_hash="${1}";
-    Debug "$_path_hash :: ${FILE_[${_path_hash},PATH,SYSTEM]:-}"
     install -CD --backup=${BACKUP_MODE} -S${BACKUP_SUFFIX} "${FILE_[${_path_hash},PATH,SYST]}" "${FILE_[${_path_hash},PATH,OVER]}"
 }
 
@@ -856,8 +852,6 @@ UI_Backup_Alert () {
             && UI_Passive_Alert " (backups will be made):" || UI_Passive_Alert ":"
 }
 
-    Clone_Array OVERLAY_GOOD PROCESSED_GOOD # we'll append to processed
-
     # MISSING FROM OVERLAY
     # -------------------------------------------------------------------------
     if [[ -n ${OVERLAY_MISS_OVER[*]:-} ]]; then
@@ -871,20 +865,34 @@ UI_Backup_Alert () {
         [ACTION_CMD]='File_Copy_To_Overlay "${_hash}"'
         [DEFAULT_CHOICE]='true'
 
-        [EXECUTED_CMD]='if [[ -n ${FILE_[${_hash},ATTR,OVER]} ]]; then Update_Attribs "${_hash}"; Add_To_Array PROCESSED_GOOD "${_item} (new copy)" && Noforce_Alert "(copied; attributes set from system file)"; else Add_To_Array OVERLAY_DIFF_ATTR "${_item}" && Noforce_Alert "(copied; attributes differ, will prompt for resolution in a moment)"; fi'
+        [EXECUTED_CMD]='if [[ -z ${FILE_[${_hash},ATTR,OVER]} ]];
+        then Update_Attribs "${_hash}";
+        Debug "aa";
+        Add_To_Array OVERLAY_GOOD "${_item} (new copy)";
+        Noforce_Alert "(copied; attributes set from system file)";
+        Debug "bb";
+        else Add_To_Array OVERLAY_DIFF_ATTR "${_item}";
+        Debug "cc";
+        Noforce_Alert "(copied; attributes differ, will prompt for resolution in a moment)";
+        Debug "dd";
+        fi;
+        Remove_From_Array OVERLAY_MISS_OVER "${_item}";'
 
-        [SKIPPED_CMD]='Noforce_Alert "(skipped)"; Add_To_Array PROCESSED_MISS_OVER "${_item} (new copy skipped)"'
+        [SKIPPED_CMD]='Noforce_Alert "(skipped)"; Swap_In_Array OVERLAY_MISS_OVER "${_item}" "${_item} (new copy skipped)"'
 
-        [FAILED_CMD]='  Noforce_Alert "(copy failed!)"; Add_To_Array PROCESSED_MISS_OVER "${_item} (new copy failed)"'
+        [FAILED_CMD]='Noforce_Alert "(copy failed!)"; Swap_In_Array OVERLAY_MISS_OVER "${_item}" "${_item} (new copy failed)"'
 
         [FORCE_VALUE]='${FORCE}'
 
         ); Ask_Auto_Action ASK_AUTO_SOURCE_;
     fi
 
+    Debug
+
     # DIFFERING ATTRIBUTES
     # -------------------------------------------------------------------------
     if [[ -n ${OVERLAY_DIFF_ATTR[*]:-} ]]; then
+        Debug
         UI_Backup_Alert "UPDATE ATTRIBUTES?
         \nThe following files differ in attributes between the system and 
         ${SCRIPTNAME} (contents match). Please choose whether to update each 
@@ -902,11 +910,12 @@ UI_Backup_Alert () {
         [DEFAULT_CHOICE]='true'
 
         [EXECUTED_CMD]='Noforce_Alert "(updated attributes)";
-        Add_To_Array PROCESSED_GOOD "${_item} (updated attributes)"'
+        Add_To_Array OVERLAY_GOOD "${_item} (updated attributes)";
+        Remove_From_Array OVERLAY_DIFF_ATTR "${_item}";'
         [SKIPPED_CMD]=' Noforce_Alert "(skipped)";
-        Add_To_Array PROCESSED_DIFF_ATTR "${_item} (update attributes skipped)"'
+        Swap_In_Array OVERLAY_DIFF_ATTR "${_item}" "${_item} (update attributes skipped)"'
         [FAILED_CMD]='  Noforce_Alert "(update attributes failed!)";
-        Add_To_Array PROCESSED_DIFF_ATTR "${_item} (update attributes failed!)"'
+        Swap_In_Array OVERLAY_DIFF_ATTR "${_item}" "${_item} (update attributes failed!)"'
 
         [FORCE_VALUE]='${FORCE}'
 
@@ -930,11 +939,12 @@ UI_Backup_Alert () {
         [DEFAULT_CHOICE]='true'
 
         [EXECUTED_CMD]='Noforce_Alert "(updated)";
-        Add_To_Array PROCESSED_GOOD "${_item} (updated content)"'
+        Add_To_Array OVERLAY_GOOD "${_item} (updated content)"
+        Remove_From_Array OVERLAY_DIFF_CONT "${_item}";'
         [SKIPPED_CMD]=' Noforce_Alert "(skipped)";
-        Add_To_Array PROCESSED_DIFF_CONT "${_item} (update content skipped)"'
+        Swap_In_Array OVERLAY_DIFF_CONT "${_item}" "${_item} (update content skipped)"'
         [FAILED_CMD]='  Noforce_Alert "(update failed!)";
-        Add_To_Array PROCESSED_DIFF_CONT "${_item} (update content failed!)"'
+        Swap_In_Array OVERLAY_DIFF_CONT "${_item}" "${_item} (update content failed!)"'
 
         [FORCE_VALUE]='${FORCE}'
 
@@ -961,35 +971,17 @@ UI_Backup_Alert () {
         [DEFAULT_CHOICE]='true'
 
         [EXECUTED_CMD]='Noforce_Alert "(updated content & attributes)";
-        Add_To_Array PROCESSED_GOOD "${_item} (updated content & attributes)"'
+        Add_To_Array PROCESSED_GOOD "${_item} (updated content & attributes)"
+        Remove_From_Array OVERLAY_DIFF_CONT_ATTR "${_item}";'
         [SKIPPED_CMD]=' Noforce_Alert "(skipped)";
-        Add_To_Array PROCESSED_DIFF_CONT_ATTR "${_item} (update content & attributes skipped)"'
+        Swap_In_Array OVERLAY_DIFF_CONT_ATTR "${_item}" "${_item} (update content & attributes skipped)"'
         [FAILED_CMD]='  Noforce_Alert "(update content & attributes failed!)";
-        Add_To_Array PROCESSED_DIFF_CONT_ATTR "${_item} (update content & attributes failed!)"'
+        Swap_In_Array OVERLAY_DIFF_CONT_ATTR "${_item}" "${_item} (update content & attributes failed!)"'
 
         [FORCE_VALUE]='${FORCE}'
 
         ); Ask_Auto_Action ASK_AUTO_SOURCE_;
     fi
-
-# GOOD - added with proc list
-# 
-# MISS_OVER - totally replaced by proc list
-# DIFF_ATTR - totally replaced
-# DIFF_CONT - totally replaced
-# DIFF_CONT_ATTR - totally replaced
-# 
-# MISS_SYST - original fine
-# MISS_BOTH - original fine
-
-local _list
-for _list in GOOD MISS_SYST MISS_OVER MISS_BOTH DIFF_ATTR DIFF_CONT DIFF_CONT_ATTR
-do
-    local _processed="PROCESSED_${_list}"
-    local _overlay="OVERLAY_${_list}"
-    eval _processed_content="\${$_processed[@]:-}"
-    [[ -n ${_processed_content} ]] && Clone_Array ${_processed} ${_overlay}
-done
 
 ;;
 SYSTEM)
@@ -999,13 +991,14 @@ File_Restore () {
 }
 ;;
 esac
-[[ -n ${OVERLAY_GOOD[@]:-} ]] && Unit_Report "MATCHES ON SYSTEM/CONFIG:\n$(Array_To_Report OVERLAY_GOOD)"
-[[ -n ${OVERLAY_MISS_SYST[@]:-} ]] && Unit_Report "MISSING ON SYSTEM (PRESENT IN $(Upper_Case ${SCRIPTNAME}) CONFIG):\n$(Array_To_Report OVERLAY_MISS_SYST)"
-[[ -n ${OVERLAY_MISS_OVER[@]:-} ]] && Unit_Report "MISSING ON $(Upper_Case ${SCRIPTNAME}) CONFIG (PRESENT ON SYSTEM):\n$(Array_To_Report OVERLAY_MISS_OVER)"
-[[ -n ${OVERLAY_MISS_BOTH[@]:-} ]] && Unit_Report "MISSING ON BOTH SYSTEM AND $(Upper_Case ${SCRIPTNAME}) CONFIG:\n$(Array_To_Report OVERLAY_MISS_BOTH)"
-[[ -n ${OVERLAY_DIFF_ATTR[@]:-} ]] && Unit_Report "ATTRIBUTES DIFFER (OR MISSING) ON SYSTEM/$(Upper_Case ${SCRIPTNAME}) CONFIG:\n$(Array_To_Report OVERLAY_DIFF_ATTR)"
-[[ -n ${OVERLAY_DIFF_CONT[@]:-} ]] && Unit_Report "CONTENTS DIFFER ON SYSTEM/$(Upper_Case ${SCRIPTNAME}) CONFIG:\n$(Array_To_Report OVERLAY_DIFF_CONT)"
-[[ -n ${OVERLAY_DIFF_CONT_ATTR[@]:-} ]] && Unit_Report "ATTRIBS/CONTENTS DIFFER ON SYSTEM/$(Upper_Case ${SCRIPTNAME}) CONFIG:\n$(Array_To_Report OVERLAY_DIFF_CONT_ATTR)"
+
+[[ -n ${OVERLAY_GOOD[@]:-} ]] && Unit_Report "MATCHES ON SYSTEM/CONFIG:\n $(Array_To_Report OVERLAY_GOOD)"
+[[ -n ${OVERLAY_MISS_SYST[@]:-} ]] && Unit_Report "MISSING ON SYSTEM (PRESENT IN $(Upper_Case ${SCRIPTNAME}) CONFIG):\n $(Array_To_Report OVERLAY_MISS_SYST)"
+[[ -n ${OVERLAY_MISS_OVER[@]:-} ]] && Unit_Report "MISSING ON $(Upper_Case ${SCRIPTNAME}) CONFIG (PRESENT ON SYSTEM):\n $(Array_To_Report OVERLAY_MISS_OVER)"
+[[ -n ${OVERLAY_MISS_BOTH[@]:-} ]] && Unit_Report "MISSING ON BOTH SYSTEM AND $(Upper_Case ${SCRIPTNAME}) CONFIG:\n $(Array_To_Report OVERLAY_MISS_BOTH)"
+[[ -n ${OVERLAY_DIFF_ATTR[@]:-} ]] && Unit_Report "ATTRIBUTES DIFFER (OR MISSING) ON SYSTEM/$(Upper_Case ${SCRIPTNAME}) CONFIG:\n $(Array_To_Report OVERLAY_DIFF_ATTR)"
+[[ -n ${OVERLAY_DIFF_CONT[@]:-} ]] && Unit_Report "CONTENTS DIFFER ON SYSTEM/$(Upper_Case ${SCRIPTNAME}) CONFIG:\n $(Array_To_Report OVERLAY_DIFF_CONT)"
+[[ -n ${OVERLAY_DIFF_CONT_ATTR[@]:-} ]] && Unit_Report "ATTRIBS/CONTENTS DIFFER ON SYSTEM/$(Upper_Case ${SCRIPTNAME}) CONFIG:\n $(Array_To_Report OVERLAY_DIFF_CONT_ATTR)"
 }
 
 UNIT_Report ()
@@ -1024,7 +1017,8 @@ then
         then
             UI_Passive_Alert "\n$(Upper_Case $_report_category | tr "_" " "):"
             UI_Passive_Alert "--------------------------------------------------------------------------------"
-            UI_Passive_Alert "${REPORT_[${_report_category}]}"
+            #UI_Passive_Alert "${REPORT_[${_report_category}]}"
+            echo -e "${REPORT_[${_report_category}]}"
         fi
     done
 fi
