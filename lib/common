@@ -18,13 +18,64 @@ Remove_From_Array ()
 {
     local _a="${1}" # array name
     local _v="${2}" # remove value
-    #eval "declare -a _t=\(\"\${$_a[@]}\"\)" # temporary array
-    #eval "local _i; for _i in \"\${!${_a}[@]}\"; do [[ \"\${${_a}[\$_i]}\" != \"\${_v}\" ]] || unset ${_a}[\$_i]; done;"
     eval "local _i; for _i in \"\${!${_a}[@]}\"; do [[ \"\${${_a}[\$_i]}\" != \"\${_v}\" ]] || ${_a}[\$_i]=; done;"
 }
 Swap_In_Array ()
 {
     eval "local _i; for _i in \"\${!${1}[@]}\"; do [[ \"\${${1}[\$_i]}\" != \"\${2}\" ]] || ${1}[\$_i]="\${3}"; done;"
+}
+
+# Handles string lists or arrays
+# Lists can be space or newline delimited, converted to newline delimited
+# 1: name of array or variable (not contents)
+# 2: value to add
+Add_To ()
+{
+    if Is_Array "${1}"
+    then
+        local _array_name="${1}"
+        local _val="${2}"
+        declare -ga "$_array_name"
+        eval "$_array_name[\${#$_array_name[*]}]=\"\${_val}\""
+    else
+        local _var_name="${1}"
+        local _val="${2}"
+        eval "$_var_name=\"\$\(echo \${!_var_name}\) \${_val}\""
+        eval "$_var_name=\"\$\(echo \${!_var_name} | Normalize_To_List\)\""
+    fi
+}
+
+# Handles string lists or arrays
+# Lists can be space or newline delimited, converted to newline delimited
+# 1: name of array or variable (not contents)
+# 2: value to add
+Remove_From ()
+{
+    if Is_Array ${1}
+    then
+        local _a="${1}" # array name
+        local _v="${2}" # remove value
+        eval "local _i; for _i in \"\${!${_a}[@]}\"; do [[ \"\${${_a}[\$_i]}\" != \"\${_v}\" ]] || ${_a}[\$_i]=; done;"
+    else
+        echo ${!1} | Normalize_To_List | egrep -v "^${2}$"
+    fi
+}
+
+# Handles string lists or arrays
+# Lists can be space or newline delimited, converted to newline delimited
+# 1: name of array or variable (not contents)
+# 2: value to replace
+# 3: replacement value
+Swap_In ()
+{
+    if Is_Array ${1}
+    then
+        Debug
+        eval "local _i; for _i in \"\${!${1}[@]}\"; do [[ \"\${${1}[\$_i]}\" != \"\${2}\" ]] || ${1}[\$_i]="\${3}"; done;"
+    else
+        Debug
+        echo ${!1} | Normalize_To_List | sed "s/^${2}$/${3}/"
+    fi
 }
 
 Upper_Case () { echo -n "$*" | tr '[:lower:]' '[:upper:]'; }
@@ -122,6 +173,8 @@ Query ()
         esac
     done
 }
+
+Progress_Report () { [[ -z ${!1:-} ]] || Unit_Report "${2}:\n${HR}\n$(echo ${!1})"; }
 
 Unit_Report ()
 {
@@ -465,6 +518,7 @@ Normalize_To_Array ()
 Normalize_To_List ()
 {
     # normalize input (command line or piped) to single line space delimited 
+    # and output one item per line
     [[ -n ${1:-} ]] && _input="$(echo ${1})" \
         || while read _line; do _input+="${_line} "; done
     [[ -n ${_input:-} ]] && ( echo ${_input} | tr -s " " "\n" | sort -u ) \
