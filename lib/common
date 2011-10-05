@@ -624,9 +624,6 @@ else
     eval local _list=\$\(echo \${$_source_set[LIST_VALUE]} \| Normalize_To_List\)
 fi
 Is_True ${_force} && _choice=${_default_choice} || _choice=
-Debug "+++++++++++ FORCE IS ${_force}"
-Debug "+++++++++++ DEFAULT CHOICE IS STARTING AT ${_default_choice}"
-Debug "+++++++++++ CHOICE IS STARTING AT ${_choice}"
 for _item in $_list
 do
     _hash=$(Hash_Of "$_item") # only used for overlay, but easier to do it once here
