@@ -297,16 +297,16 @@ Sample Output
 
     backpac
     ----------------------------------------------------------------------------
-    (-b)	Backups ON; Files will be saved in place with backup suffix.
-    -f	Force mode ON; No prompts presented (CAUTION).
-    (-F)	Full Force mode OFF; Prompt displayed before script runs.
-    (-g)	Suppress group check OFF; Groups will be checked for currency.
-    (-h)	Display option and usage summary.
-    (-p)	Default backpac: /home/es/.config/backpac/tau.
-    -Q	Simple Query ON; Report shown; no changes made to system.
-    (-R)	Auto-Remove OFF; Remove/Uninstall action default to NO.
-    (-S)	System update OFF; No system files will be updated.
-    (-U)	backpac config update OFF; backpac files will not be updated.
+    (-b)    Backups ON; Files will be saved in place with backup suffix.
+     -f     Force mode ON; No prompts presented (CAUTION).
+    (-F)    Full Force mode OFF; Prompt displayed before script runs.
+    (-g)    Suppress group check OFF; Groups will be checked for currency.
+    (-h)    Display option and usage summary.
+    (-p)    Default backpac: /home/es/.config/backpac/tau.
+     -Q     Simple Query ON; Report shown; no changes made to system.
+    (-R)    Auto-Remove OFF; Remove/Uninstall action default to NO.
+    (-S)    System update OFF; No system files will be updated.
+    (-U)    backpac config update OFF; backpac files will not be updated.
 
     Sourcing from backpac config directory: /home/es/.config/backpac/tau
 
