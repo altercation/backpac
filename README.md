@@ -10,17 +10,33 @@ Quickstart
 
 * Install from AUR (see install below).
 * Automatically generate first config with: `backpac -Uf`
-* View a report: `backpac -R` or `backpac -Rf` to skip prompts
+* View a report: `backpac -Q` or `backpac -Qf` to skip prompts
 
 Why?
 ----
 
-I wanted something simple to set up my Arch Linux machines, save state and 
-restore it. Lists, pacman, file backup, git. Backpac just glues some of these 
-pieces together.
+There are a lot of 'big-iron' solutions to maintaining, backing up and
+restoring system state. Setting these up for a single system or a handful of
+personal systems has always seemed like overkill.
 
-It needed to have very minimal requirements and work on fresh systems. Bash was 
-the obvious choice.
+There are also some existing pacman list making utilities around, but most of
+them seem to list either all packages or don't separate the official and aur
+packages the way I wanted. Some detect group install state, some don't. I 
+wanted all these features in backpac.
+
+Finally, whatever tool I use, I'd like it to be simple (c.f. the Arch Way).
+Lists that are produced should be human readable, human maintainable and not
+different from what I'm using in non-automated form. Backpac fulfills these
+requirements.
+
+Regarding files, I wanted to be able to backup arbitrary system files to a 
+git repository. Tools like etckeeper are interesting but non /etc files in 
+that case aren't backed up (without some link trickery) and there isn't any 
+automatic integration with pacman, so there is no current advantage to using 
+a tool like that. I also like making an explicit list of files to snapshot.
+
+Bash was selected as backpac needed to have very minimal requirements and 
+work on fresh systems.
 
 Details
 -------
@@ -173,13 +189,14 @@ information.
     -g     Suppress group currency check; Skip checking current group packages.
     -h     Display option and usage summary.
     -p     Specify full path to a custom backpac config directory.
-    -R     SAFELY Reports system and backpac config state; no changes made.
+    -Q     SAFELY queries & reports system/backpac config state; no changes.
+    -R     DANGER: Auto-Remove; Remove/Uninstall actions default to YES.
     -S     Update LIVE system files/packages from backpac config.
     -U     Update files in backpac config directory.
 
 ### USAGE SUMMARY:
 
-    backpac -R     Show a report; no changes made to system (try this first!)
+    backpac -Q     Show a report; no changes made to system (try this first!)
     backpac -U     Create a new or update existing backpac config
     backpac -S     Update live system to match current backpac config
 
@@ -240,6 +257,10 @@ AUTOMATED Examples
 Both of these are the "extreme" cases of fully automated backpac config update 
 and system state updates.
 
+### JUST THE FACTS: No-changes, just a query report
+
+    backpac -Qf
+
 ### TAKE NO PRISONERS: Full backpac snapshot of the system
 
     backpac -UFRb
@@ -255,7 +276,6 @@ commit to a git repository so I don't want them). Option details:
     -F  Skip initial prompt and take default action for all changes
     -R  Sets removes (package names in this case) to default to YES
     -b  No backups (we'll use git instead)
-
 
 ### WE ARE SPARTA: Full overwrite of system to conform to backpac state
 
