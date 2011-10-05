@@ -3,14 +3,6 @@
 TestFunc () { :; }
 
 # ==============================================================================
-# REQUIRES
-# ==============================================================================
-# requires:
-# bash > 4.0
-# wget
-# packer (can install automatically)
-
-# ==============================================================================
 # SCRIPT EXECUTION SETTINGS
 # ==============================================================================
 
@@ -19,6 +11,25 @@ DEBUG=${DEBUG:-}
 set -o nounset # -u : disallow unset variable use
 set -o errexit # -e : exit on any trivial error
 [[ -z $DEBUG ]] || set -o verbose # -v : talkative bash DEBUG
+
+# ==============================================================================
+# REQUIRES
+# ==============================================================================
+# requires:
+if [[ ! ${BASH_VERSION:0:1} -ge 4 ]]
+then
+    echo "${SCRIPTNAME} requires bash v.4 or greater"
+    exit
+fi
+for test in wget
+do
+    if ! which $test &>/dev/null
+    then
+        echo "${SCRIPTNAME} requires $test"
+        exit
+    fi
+done
+# packer (can install automatically)
 
 # ==============================================================================
 # SCRIPT DEFAULTS
@@ -157,8 +168,8 @@ OPT_FULL_FORCE_=(
 [FLAG]='F'
 [STATE]='false'
 [STATE_SET]='true'
-[ALERT]='Full Force mode OFF; No automatic uninstalls.'
-[ALERT_SET]='Full Force mode ON; Automatic uninstalls.'
+[ALERT]='Full Force mode OFF; Prompt displayed before script runs.'
+[ALERT_SET]='Full Force mode ON; Prompt not displayed before script runs.'
 [USAGE]='DANGER: Force mode with automatic execution, NO-INITIAL PROMPT.'
 )
 OPT_GROUP_CURRENCY_CHECK_=(
@@ -169,30 +180,30 @@ OPT_GROUP_CURRENCY_CHECK_=(
 [ALERT_SET]='Suppress group check ON; Groups will not be checked for currency.'
 [USAGE]='Suppress group currency check; Skip checking current group packages.'
 )
-OPT_FILES_DIFF_DISPLAY_=(
-[FLAG]='d'
-[STATE]='false'
-[STATE_SET]='true'
-[ALERT]='Files diff OFF; No file diff report will be displayed.'
-[ALERT_SET]='File diff ON; File diff report will be displayed.'
-[USAGE]='Files will be diffed with system files and result displayed.'
-)
-OPT_GIT_UPDATE_=(
-[FLAG]='c'
-[STATE]='false'
-[STATE_SET]='true'
-[ALERT]='Git commit update OFF; No git commit/push after config update.'
-[ALERT_SET]='Git commit update ON; Git commit/push after config update.'
-[USAGE]="Git commit and push ${SCRIPTNAME} config directory if it is a repository."
-)
-OPT_PACMAN_UPDATE_=(
-[FLAG]='y'
-[STATE]='false'
-[STATE_SET]='true'
-[ALERT]='Pacman update OFF; Package list will not be refreshed.'
-[ALERT_SET]='Pacman update ON; Package list will be downloaded.'
-[USAGE]='Update pacman package master list (pacman -Sy).'
-)
+#OPT_FILES_DIFF_DISPLAY_=(
+#[FLAG]='d'
+#[STATE]='false'
+#[STATE_SET]='true'
+#[ALERT]='Files diff OFF; No file diff report will be displayed.'
+#[ALERT_SET]='File diff ON; File diff report will be displayed.'
+#[USAGE]='Files will be diffed with system files and result displayed.'
+#)
+#OPT_GIT_UPDATE_=(
+#[FLAG]='c'
+#[STATE]='false'
+#[STATE_SET]='true'
+#[ALERT]='Git commit update OFF; No git commit/push after config update.'
+#[ALERT_SET]='Git commit update ON; Git commit/push after config update.'
+#[USAGE]="Git commit and push ${SCRIPTNAME} config directory if it is a repository."
+#)
+#OPT_PACMAN_UPDATE_=(
+#[FLAG]='y'
+#[STATE]='false'
+#[STATE_SET]='true'
+#[ALERT]='Pacman update OFF; Package list will not be refreshed.'
+#[ALERT_SET]='Pacman update ON; Package list will be downloaded.'
+#[USAGE]='Update pacman package master list (pacman -Sy).'
+#)
 OPT_CONFIG_DIRPATH_=(
 [FLAG]='p:'
 [STATE]="${CONFIG_DIRPATH_DEFAULT}"
@@ -477,10 +488,6 @@ local _packages_config_all="$(Read_File_Drop_Comments ${PACKAGES_FILEPATH} | Nor
 AUR_CONF="$(Set_Op_Difference "${_packages_config_all}" "${_packages_repo_allknown}")"
 PACKAGES_CONF="$(Set_Op_Difference "${_packages_config_all}" "${AUR_CONF}")"
 
-# NO LONGER USED; NOW UNIFIED
-#PACKAGES_CONF="$(Read_File_Drop_Comments ${PACKAGES_FILEPATH} | Normalize_To_List)"
-#AUR_CONF="$(Read_File_Drop_Comments ${AUR_FILEPATH} | Normalize_To_List)"
-
 PACKAGES_SYST="$(Set_Op_Difference "${_packages_repo}" "${_packages_groups}")"
 AUR_SYST="$(Set_Op_Intersection "${_packages_explicit}" "${_packages_manual}")"
 
@@ -636,7 +643,7 @@ SYSTEM)
     [SKIPPED_CMD]='Noforce_Alert "(skipped)"'
     [FAILED_CMD]='Noforce_Alert "(uninstall failed!)"'
     [FORCE_VALUE]='${FORCE}'
-    [DEFAULT_CHOICE]='true'
+    [DEFAULT_CHOICE]='false'
     ); Ask_Auto_Action ASK_AUTO_SOURCE_;
     fi
 
@@ -654,7 +661,7 @@ SYSTEM)
     [SKIPPED_CMD]='Noforce_Alert "(skipped)"'
     [FAILED_CMD]='Noforce_Alert "(uninstall failed!)"'
     [FORCE_VALUE]='${FORCE}'
-    [DEFAULT_CHOICE]='true'
+    [DEFAULT_CHOICE]='false'
     ); Ask_Auto_Action ASK_AUTO_SOURCE_;
     fi
 
