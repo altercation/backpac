@@ -261,8 +261,9 @@ Adding -${OPT_FULL_FORCE_[FLAG]} will skip the initial prompt as well as all sub
 FIRST RUN / AUTOMATIC UPDATE:\n${HR}
 ${SCRIPTNAME} -${OPT_CONFIG_UPDATE_[FLAG]}${OPT_FORCE_[FLAG]}\tAutomatically create a ${SCRIPTNAME} config from system state.
 
-See options summary above for other features or consult the ${SCRIPTNAME} man page using the command: man ${SCRIPTNAME}
+$(Upper_Case ${SCRIPTNAME}) DEFAULT CONFIG LOCATION:\n${HR}\n${CONFIG_DIRPATH_DEFAULT}
 "
+#See options summary above for other features or consult the ${SCRIPTNAME} man page using the command: man ${SCRIPTNAME}
 
 # ==============================================================================
 # EXECUTION SEQUENCE
