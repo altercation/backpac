@@ -1,6 +1,15 @@
 #!/bin/bash
 
 HR="--------------------------------------------------------------------------------"
+HR2="================================================================================"
+
+Fill_Title ()
+{
+    local _title="${1}"
+    local _length=$(( ${2:-80} - ${#_title} - 1 ))
+    printf -v line '%*s' "$_length"
+    echo -e "${_title%*} ${line// /=}"
+}
 
 Debug () { echo -e ">>> DEBUG: EXECUTING ${FUNCNAME[1]} AT LINE ${BASH_LINENO[0]}${*:+ >>> }${*:-}"; }
 
@@ -40,8 +49,9 @@ Add_To ()
     else
         local _var_name="${1}"
         local _val="${2}"
-        eval "$_var_name=\"\$\(echo \${!_var_name}\) \${_val}\""
-        eval "$_var_name=\"\$\(echo \${!_var_name} | Normalize_To_List\)\""
+        eval "declare -g ${_var_name}"
+        eval "local _combined=\"\${${_var_name}:-} \${_val}\""
+        eval "${_var_name}=\"$(Normalize_To_List "${_combined}")\""
     fi
 }
 
@@ -57,7 +67,8 @@ Remove_From ()
         local _v="${2}" # remove value
         eval "local _i; for _i in \"\${!${_a}[@]}\"; do [[ \"\${${_a}[\$_i]}\" != \"\${_v}\" ]] || ${_a}[\$_i]=; done;"
     else
-        echo ${!1} | Normalize_To_List | egrep -v "^${2}$"
+        local _result="$(echo ${!1} | Normalize_To_List | egrep -v "^${2}$")"
+        eval "${1}=\"\${_result}\""
     fi
 }
 
@@ -70,11 +81,10 @@ Swap_In ()
 {
     if Is_Array ${1}
     then
-        Debug
         eval "local _i; for _i in \"\${!${1}[@]}\"; do [[ \"\${${1}[\$_i]}\" != \"\${2}\" ]] || ${1}[\$_i]="\${3}"; done;"
     else
-        Debug
-        echo ${!1} | Normalize_To_List | sed "s/^${2}$/${3}/"
+        local _result="$(echo ${!1} | Normalize_To_List | sed "s/^${2}$/${3}/")"
+        eval "${1}=\"\${_result}\""
     fi
 }
 
@@ -119,9 +129,8 @@ Array_To_List ()
     while true
     do
         eval [[ \$_line_num == \${#$_arrayname[@]} ]] && break
-        #eval echo "\${$_arrayname[$_line_num]}" | sed "s/\\/\\\\/g"
         eval _line="\${$_arrayname[$_line_num]}"
-        echo "${_line}"
+        [[ -z ${_line} ]] || echo "${_line}"
         let "_line_num+=1"
     done
 }
@@ -129,15 +138,17 @@ Array_To_List ()
 # TODO: get rid of duplication with to list above
 Array_To_Report ()
 {
+    #Array_To_List $*
+    #return
     local _arrayname="${1}"
     local _line
     local _line_num=0
     while true
     do
         eval [[ \$_line_num == \${#$_arrayname[@]} ]] && break
-        #eval echo "\${$_arrayname[$_line_num]}" | sed "s/\\/\\\\/g"
         eval _line="\${$_arrayname[$_line_num]:-}"
-        [[ -z ${_line} ]] || echo "${_line}\n"
+        #[[ -z ${_line} ]] || echo -e "${_line}\\\n"
+        [[ -z ${_line} ]] || Unit_Report "${_line}"
         let "_line_num+=1"
     done
 }
@@ -174,7 +185,27 @@ Query ()
     done
 }
 
-Progress_Report () { [[ -z ${!1:-} ]] || Unit_Report "${2}:\n${HR}\n$(echo ${!1})"; }
+#Progress_Report () { [[ -z ${!1:-} ]] || Unit_Report "${2}:\n${HR}\n$(echo ${!1})"; }
+Progress_Report ()
+{
+    local _var_name="${1}"
+    local _report_val="${2:-}"
+    [[ -n ${_report_val} ]] && local _sep=":" || local _sep=""
+    if Is_Array "${_var_name}"
+    then
+        eval "local _eval_string=\"\${${_var_name}[@]:-}"\"
+        if [[ -z $(echo -n ${_eval_string}) ]]
+        then
+            :
+        else
+            Unit_Report "\n${_report_val:-}${_sep}\n${HR}"
+            Array_To_Report ${_var_name}
+        fi
+    else
+        #eval "[[ -n \${$_var_name:-} ]] && Unit_Report \"\\\n\${_report_val}:\\\n\${HR}\\\n\$(echo \${$_var_name})\"" || true
+        eval "[[ -z \${$_var_name:-} ]] || Unit_Report \"\\\n\${_report_val}${_sep}\\\n\${HR}\\\n\$(echo \${$_var_name})\""
+    fi
+}
 
 Unit_Report ()
 {
@@ -193,7 +224,8 @@ Unit_Report ()
     fi
 
     # add report string to report category string
-    REPORT_[${_category#UNIT_}]+="$(echo ${_message})\n";
+    #REPORT_[${_category#UNIT_}]+="$(echo ${_message})\n";
+    REPORT_[${_category#UNIT_}]+="${_message}\n";
 }
 
 # Install_Package_From_AUR <package_name>
@@ -517,7 +549,7 @@ Normalize_To_Array ()
 
 Normalize_To_List ()
 {
-    # normalize input (command line or piped) to single line space delimited 
+    # normalize input (option 1 or piped input) to single line space delimited 
     # and output one item per line
     [[ -n ${1:-} ]] && _input="$(echo ${1})" \
         || while read _line; do _input+="${_line} "; done
@@ -549,69 +581,51 @@ Ask_Auto_Action ()
 # [DEFAULT_CHOICE]='true'
 # ); Ask_Auto_Action ASK_AUTO_SET_NAME_
 
-local _source_set="${1}"
-
-local _item=
-local _executed_list=
-local _failed_list=
-local _skipped_list=
-
-eval local _list_var_name=\"\${$_source_set[LIST_VAR_NAME]:-}\"
+local _list_var_name="${ASK_AUTO_SOURCE_[LIST_VAR_NAME]:-}"
+local _default_choice="${ASK_AUTO_SOURCE_[DEFAULT_CHOICE]}"
+local _item= _executed_list= _failed_list= _skipped_list=
+eval local _force=\"${ASK_AUTO_SOURCE_[FORCE_VALUE]:-false}\"
 if [[ -n ${_list_var_name:-} ]]
 then
     if Is_Array $_list_var_name
-    then
-        local _list="$(Array_To_List $_list_var_name)"
-    else
-        local _list="$(echo ${!_list_var_name} | Normalize_To_List)"
+    then local _list="$(Array_To_List $_list_var_name)"
+    else local _list="$(echo $(Normalize_To_List "${!_list_var_name}"))"
     fi
 else
-    #eval eval local _list=\$\(echo \${$_source_set[LIST_VALUE]} \| Normalize_To_List\)
     eval local _list=\$\(echo \${$_source_set[LIST_VALUE]} \| Normalize_To_List\)
 fi
-eval local _query_string=\"\${$_source_set[QUERY_STRING]}\"
-eval eval local _force=\"\${$_source_set[FORCE_VALUE]:-false}\"
-eval local _default_choice=\"\${$_source_set[DEFAULT_CHOICE]}\"
-_action_command   () { eval eval \${$_source_set[ACTION_CMD]:-:}; }
-_executed_command () { eval eval \${$_source_set[EXECUTED_CMD]:-:}; }
-_skipped_command  () { eval eval \${$_source_set[SKIPPED_CMD]:-:}; }
-_failed_command   () { eval eval \${$_source_set[FAILED_CMD]:-:}; }
-_executed_list_command () { eval eval \${$_source_set[EXECUTED_LIST_CMD]:-:}; }
-_skipped_list_command  () { eval eval \${$_source_set[SKIPPED_LIST_CMD]:-:}; }
-_failed_list_command   () { eval eval \${$_source_set[FAILED_LIST_CMD]:-:}; }
-eval eval "local _skipped_rtn_name=\"\${$_source_set[SKIPPED_RTN_NAME]:-}\""
-eval eval "local _executed_rtn_name=\"\${$_source_set[EXECUTED_RTN_NAME]:-}\""
-eval eval "local _failed_rtn_name=\"\${$_source_set[FAILED_RTN_NAME]:-}\""
-
 Is_True ${_force} && _choice=${_default_choice} || _choice=
 for _item in $_list
 do
     _hash=$(Hash_Of "$_item") # only used for overlay, but easier to do it once here
-    if ! Is_True ${_force}; then
-        Query "${_query_string}" _force && _choice=true || _choice=false
-    fi
+    if ! Is_True ${_force}; then Query "${ASK_AUTO_SOURCE_[QUERY_STRING]}" _force && _choice=true || _choice=false; fi
     if Is_True ${_choice}; then
+        _action_command     () { eval ${ASK_AUTO_SOURCE_[ACTION_CMD]:-:};    }
+        _executed_command   () { eval ${ASK_AUTO_SOURCE_[EXECUTED_CMD]:-:};  }
+        _skipped_command    () { eval ${ASK_AUTO_SOURCE_[SKIPPED_CMD]:-:};   }
+        _failed_command     () { eval ${ASK_AUTO_SOURCE_[FAILED_CMD]:-:};    }
         if _action_command
-        then
-            _executed_list+="${_item} "
-            _executed_command
-        else
-            _failed_list+="${_item} "
-            _failed_command
+        then _executed_list+="${_item} ";   _executed_command
+        else _failed_list+="${_item} ";     _failed_command
         fi
     else
-        _skipped_list+="${_item} "
-        _skipped_command
+        _skipped_list+="${_item} ";         _skipped_command
     fi
 done
 local _output
 for _output in executed skipped failed
 do
-_output_list_name="_${_output}_list"
-_output_rtn_name="_${_output}_rtn_name"
-if  [[ -n "${!_output_list_name:-}" ]]; then
-    [[ -n ${!_output_rtn_name:-} ]] && eval ${!_output_rtn_name}=\"\${_${_output}_list}\"
-    eval _${_output}_list_command
-fi
+    local _skipped_rtn_name="${ASK_AUTO_SOURCE_[SKIPPED_RTN_NAME]:-}"
+    local _executed_rtn_name="${ASK_AUTO_SOURCE_[EXECUTED_RTN_NAME]:-}"
+    local _failed_rtn_name="${ASK_AUTO_SOURCE_[FAILED_RTN_NAME]:-}"
+    _executed_list_command () { eval ${ASK_AUTO_SOURCE_[EXECUTED_LIST_CMD]:-:}; }
+    _skipped_list_command () { eval ${ASK_AUTO_SOURCE_[SKIPPED_LIST_CMD]:-:}; }
+    _failed_list_command () { eval ${ASK_AUTO_SOURCE_[FAILED_LIST_CMD]:-:}; }
+    _output_list_name="_${_output}_list"
+    _output_rtn_name="_${_output}_rtn_name"
+    if  [[ -n "${!_output_list_name:-}" ]]; then
+        [[ -n ${!_output_rtn_name:-} ]] && eval ${!_output_rtn_name}=\"\${_${_output}_list}\"
+        eval _${_output}_list_command
+    fi
 done
 }
