@@ -46,8 +46,8 @@ packages you've installed, what files you've modified.
 
 Backpac creates those notes for you, specifically:
 
+ * a list of installed groups (based on 80% of group packages being installed)
  * a list of packages (including official and aur packages, listed separately)
-
  * a list of files (manually created) that is automatically archived
 
 Backpac can also use these lists to install packages and files. Essentially, 

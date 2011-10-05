@@ -35,8 +35,6 @@ done
 # SCRIPT DEFAULTS
 # ==============================================================================
 
-LIBS_DIRPATH="/usr/share/${SCRIPTNAME}/lib"
-LIBS_DIRPATH="$(dirname $0)/lib" # TODO: remove this
 CMDLINE_OPTIONS="${@}" # global so we can use in functions easily
 BACKUP_SUFFIX=".${SCRIPTNAME}-old" # cf man install
 DEFAULT_BACKUP_MODE=simple # cf man install
@@ -44,6 +42,13 @@ GROUPS_FILENAME="groups"
 PACKAGES_FILENAME="packages"
 FILES_FILENAME="files"
 FILES_DIRNAME="${FILES_FILENAME}.d"
+
+# ==============================================================================
+# LIBS LOCATION
+# ==============================================================================
+LIBS_DIRPATH="/usr/share/${SCRIPTNAME}/lib"
+[[ -d "${LIBS_DIRPATH}" ]] || LIBS_DIRPATH="$(dirname $0)/lib"
+[[ -d "${LIBS_DIRPATH}" ]] || (echo "Failed to find script libs!" && exit 1)
 
 # ==============================================================================
 # DYNAMIC ASSOCIATIVE ARRAYS
