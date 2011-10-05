@@ -347,7 +347,6 @@ UNIT_Groups ()
 # DETECT GROUPS
 # ----------------------------------------------------------------------
 GROUPS_POTENTIAL=$(pacman -Qg | awk '{print $1}' | sort -u)
-#UI_Incremental_Alert "\nDetecting installed groups... "
 UI_Incremental_Alert "\nInitializing..."
 local _group
 for _group in ${GROUPS_POTENTIAL}
@@ -357,16 +356,13 @@ do
     # reporting if testing repos are live, for instance
     GROUP_PACKAGES_LOCAL_[${_group}]="$(pacman -Qgq $_group)"
     GROUP_PACKAGES_REPO_[${_group}]="$(pacman -Sgq $_group)"
-    local _group_count_local=$(echo ${GROUP_PACKAGES_LOCAL_[${_group}]} \
-        | Normalize_To_List | wc -l)
-    local _group_count_repo=$(echo ${GROUP_PACKAGES_REPO_[${_group}]} \
-        | Normalize_To_List | wc -l)
+    local _group_count_local=$(echo ${GROUP_PACKAGES_LOCAL_[${_group}]} | Normalize_To_List | wc -l)
+    local _group_count_repo=$(echo ${GROUP_PACKAGES_REPO_[${_group}]} | Normalize_To_List | wc -l)
     local _threshold=12
     local _score=$(echo $((($_group_count_repo*10)/$_group_count_local)))
     if [[ $_score -le $_threshold ]]
     then
         GROUPS_DETECTED+="$_group "
-        #UI_Incremental_Alert "$_group "
         UI_Incremental_Alert ".."
     fi
 done
@@ -376,7 +372,6 @@ Progress_Report GROUPS_DETECTED "INSTALLED GROUPS (DETECTED>80% MEMBER PACKAGE I
 # CHECK GROUP FOR NEW/REMOVED PACKAGES
 # ----------------------------------------------------------------------
 if Is_True ${GROUP_CURRENCY_CHECK}; then
-# scan and build list of missing/removed
 local _group
 for _group in ${GROUPS_DETECTED}
 do
@@ -392,65 +387,155 @@ do
     fi
 done
 
-local _runagain_alert="Run again in system update mode (non 
--${OPT_FORCE_[FLAG]} forced mode) to be presented a prompt for installation of 
-these, or install manually."
+#local _runagain_alert="Run again in system update mode (non 
+#-${OPT_FORCE_[FLAG]} forced mode) to be presented a prompt for installation of 
+#these, or install manually."
+#
+#local _skip_alert="Run ${SCRIPTNAME} with the 
+#-${OPT_GROUP_CURRENCY_CHECK_[FLAG]} command line option to skip this group 
+#package currency check."
+#
+#if [[ -n "${GROUP_PACKAGES_MISSING_IN_GROUP_[*]:-}" ]]
+#then
+#    # there are some missing packages
+#    local _group
+#    for _group in ${!GROUP_PACKAGES_MISSING_IN_GROUP_[*]}; do
+#    if [[ -n "${GROUP_PACKAGES_MISSING_IN_GROUP_[$_group]}" ]]; then
+#    if ! Is_True ${FORCE} && [[ "${MODE}" == "SYSTEM" ]]; then
+#        UI_Passive_Alert "MISSING from group \"${_group}\":"
+#
+#        Unset_Array ASK_AUTO_SOURCE_; ASK_AUTO_SOURCE_=(
+#        [LIST_VALUE]="${GROUP_PACKAGES_MISSING_IN_GROUP_[$_group]}"
+#        [QUERY_STRING]='Install ${_item}?'
+#        [ACTION_CMD]='Install_Package "${_item}"'
+#        [EXECUTED_LIST_CMD]='Unit_Report "MISSING from group \"${_group}\", INSTALLED: ${_executed_list}"'
+#        [SKIPPED_LIST_CMD]='Unit_Report "MISSING from group \"${_group}\", INSTALL SKIPPED: ${_skipped_list}"'
+#        [FAILED_LIST_CMD]='Unit_Report "MISSING from group \"${_group}\", INSTALL FAILED: ${_failed_list}"'
+#        [FORCE_VALUE]='${FORCE}'
+#        [DEFAULT_CHOICE]='false'
+#        ); Ask_Auto_Action ASK_AUTO_SOURCE_
+#    else
+#        # not in non-force system update mode
+#        Progress_Report "GROUP_PACKAGES_MISSING_IN_GROUP_[$_group]" "MISSING from group \"${_group}\""
+#    fi; fi; done
+#
+#fi # end of test for any missing group packages
+#
+#if [[ -n "${GROUP_PACKAGES_REMOVED_FROM_GROUP_[*]:-}" ]]
+#then
+#    # there are some removed packages
+#    local _group
+#    for _group in ${!GROUP_PACKAGES_REMOVED_FROM_GROUP_[*]}; do
+#    if [[ -n "${GROUP_PACKAGES_REMOVED_FROM_GROUP_[$_group]}" ]]; then
+#    if ! Is_True ${FORCE} && [[ "${MODE}" == "SYSTEM" ]]; then
+#        # SYSTEM, NON FORCE MODE
+#        UI_Passive_Alert "REMOVED from group \"${_group}\":"
+#
+#        Unset_Array ASK_AUTO_SOURCE_; ASK_AUTO_SOURCE_=(
+#        [LIST_VALUE]="${GROUP_PACKAGES_REMOVED_FROM_GROUP_[$_group]}"
+#        [QUERY_STRING]='Install ${_item}'
+#        [ACTION_CMD]='Uninstall_Package "${_item}?'
+#        [EXECUTED_LIST_CMD]='Unit_Report "REMOVED from repo group \"${_group}\", UNINSTALLED: ${_executed_list}"'
+#        [SKIPPED_LIST_CMD]='Unit_Report "REMOVED from repo group \"${_group}\", UNINSTALL SKIPPED: ${_skipped_list}"'
+#        [FAILED_LIST_CMD]='Unit_Report "REMOVED from repo group \"${_group}\", UNINSTALL FAILED: ${_failed_list}"'
+#        [FORCE_VALUE]='${FORCE}'
+#        [DEFAULT_CHOICE]='false'
+#        ); Ask_Auto_Action ASK_AUTO_SOURCE_
+#
+#    else
+#        Progress_Report "GROUP_PACKAGES_REMOVED_FROM_GROUP_[$_group]" "REMOVED from group \"${_group}\" (currently installed as part of group)"
+#    fi; fi; done
+#fi # end of test for any removed group packages
 
-local _skip_alert="Run ${SCRIPTNAME} with the 
--${OPT_GROUP_CURRENCY_CHECK_[FLAG]} command line option to skip this group 
-package currency check."
+Debug "FIX GROUPS"
+Add a groups file read/write step
+exit
 
-if [[ -n "${GROUP_PACKAGES_MISSING_IN_GROUP_[*]:-}" ]]
-then
-    # there are some missing packages
-    local _group
-    for _group in ${!GROUP_PACKAGES_MISSING_IN_GROUP_[*]}; do
-    if [[ -n "${GROUP_PACKAGES_MISSING_IN_GROUP_[$_group]}" ]]; then
-    if ! Is_True ${FORCE} && [[ "${MODE}" == "SYSTEM" ]]; then
-        UI_Passive_Alert "MISSING from group \"${_group}\":"
+case $MODE in
+CONFIG) # Condition add all, conditional remove all
 
-        Unset_Array ASK_AUTO_SOURCE_; ASK_AUTO_SOURCE_=(
-        [LIST_VALUE]="${GROUP_PACKAGES_MISSING_IN_GROUP_[$_group]}"
-        [QUERY_STRING]='Install ${_item}?'
-        [ACTION_CMD]='Install_Package "${_item}"'
-        [EXECUTED_LIST_CMD]='Unit_Report "MISSING from group \"${_group}\", INSTALLED: ${_executed_list}"'
-        [SKIPPED_LIST_CMD]='Unit_Report "MISSING from group \"${_group}\", INSTALL SKIPPED: ${_skipped_list}"'
-        [FAILED_LIST_CMD]='Unit_Report "MISSING from group \"${_group}\", INSTALL FAILED: ${_failed_list}"'
-        [FORCE_VALUE]='${FORCE}'
-        [DEFAULT_CHOICE]='false'
-        ); Ask_Auto_Action ASK_AUTO_SOURCE_
+    # GROUPS MISSING FROM CONFIG
+    # -------------------------------------------------------------------------
+    if [[ -n ${PACKAGES_MISS_CONF[*]:-} ]]; then
+    UI_Backup_Alert "\n
+    ADD PACKAGES THAT ARE INSTALLED BUT NOT IN ${SCRIPTNAME} FILES LIST?\n${HR} \nThe following packages are installed to your system but are not 
+    listed in your ${SCRIPTNAME} package list. Please choose whether to add each item to the ${SCRIPTNAME} package list"
+    Unset_Array ASK_AUTO_SOURCE_; ASK_AUTO_SOURCE_=(
+    [LIST_VAR_NAME]='PACKAGES_MISS_CONF'
+    [QUERY_STRING]='\n${_item}\nAdd package name to ${SCRIPTNAME} config?'
+    [ACTION_CMD]='Add_To PACKAGES_INST_CONF "${_item}"; Remove_From PACKAGES_MISS_CONF "${_item}"; CHANGE_MADE=true;'
+    [DEFAULT_CHOICE]='true'
+    [EXECUTED_CMD]='Noforce_Alert "(added)"'
+    [SKIPPED_CMD]='Noforce_Alert "(skipped)"'
+    [FAILED_CMD]='Noforce_Alert "(add failed!)"'
+    [FORCE_VALUE]='${FORCE}'
+    ); Ask_Auto_Action ASK_AUTO_SOURCE_;
+    fi
+
+    # UPDATE PACKAGES LIST
+    if [[ -n ${PACKAGES_INST_CONF:-}${PACKAGES_REMO_CONF:-}${AUR_INST_CONF:-}${AUR_REMO_CONF:-} ]]
+    then
+
+        # copy current config packages file if present
+        [[ -e "${PACKAGES_FILEPATH}" ]] && cp "${PACKAGES_FILEPATH}" "${TMPDIR}/${PACKAGES_FILENAME}"
+
+        # add newly added packages to list
+        if [[ -n ${PACKAGES_INST_CONF:-} ]]
+        then
+            echo -e "\n# PACKAGES added by ${SCRIPTNAME} on $(date +%F)" >> "${TMPDIR}/${PACKAGES_FILENAME}"
+            echo "# ${HR%--}" >> "${TMPDIR}/${PACKAGES_FILENAME}"
+            echo ${PACKAGES_INST_CONF} | fmt -w 80 >> "${TMPDIR}/${PACKAGES_FILENAME}"
+        fi
+        if [[ -n ${AUR_INST_CONF:-} ]]
+        then
+            echo -e "\n# AUR PACKAGES added by ${SCRIPTNAME} on $(date +%F)" >> "${TMPDIR}/${PACKAGES_FILENAME}"
+            echo "# ${HR%--}" >> "${TMPDIR}/${PACKAGES_FILENAME}"
+            echo ${AUR_INST_CONF} | fmt -w 80 >> "${TMPDIR}/${PACKAGES_FILENAME}"
+        fi
+
+        # include a summary of removed packages
+        if [[ -n ${PACKAGES_REMO_CONF:-} ]]
+        then
+            local _package_name
+            for _package_name in ${PACKAGES_REMO_CONF}
+            do
+                sed -i "/^[[:space:]]*#/!s/\<${_package_name}\> \?//" "${TMPDIR}/${PACKAGES_FILENAME}"
+            done
+            echo -e "\n# PACKAGES REMOVED by ${SCRIPTNAME} on $(date +%F)" >> "${TMPDIR}/${PACKAGES_FILENAME}"
+            echo "# ${HR%--}" >> "${TMPDIR}/${PACKAGES_FILENAME}"
+            echo "# $(echo ${PACKAGES_REMO_CONF})" >> "${TMPDIR}/${PACKAGES_FILENAME}"
+        fi
+        if [[ -n ${AUR_REMO_CONF:-} ]]
+        then
+            local _package_name
+            for _package_name in ${AUR_REMO_CONF}
+            do
+                sed -i "/^[[:space:]]*#/!s/\<${_package_name}\> \?//" "${TMPDIR}/${PACKAGES_FILENAME}"
+            done
+            echo -e "\n# AUR PACKAGES REMOVED by ${SCRIPTNAME} on $(date +%F)" >> "${TMPDIR}/${PACKAGES_FILENAME}"
+            echo "# ${HR%--}" >> "${TMPDIR}/${PACKAGES_FILENAME}"
+            echo "# $(echo ${AUR_REMO_CONF})" >> "${TMPDIR}/${PACKAGES_FILENAME}"
+        fi
+
+        # atomic write
+        install -CD --backup=${BACKUP_MODE} -S${BACKUP_SUFFIX} "${TMPDIR}/${PACKAGES_FILENAME}" "${PACKAGES_FILEPATH}" \
+        && MODE_FINAL="SUCCESSFULLY UPDATED PACKAGES LIST" \
+        || MODE_FINAL="FAILED TO UPDATE PACKAGES LIST!"
+
     else
-        # not in non-force system update mode
-        Progress_Report "GROUP_PACKAGES_MISSING_IN_GROUP_[$_group]" "MISSING from group \"${_group}\""
-    fi; fi; done
+        MODE_FINAL= #"NO CHANGES MADE; PACKAGES LIST NOT UPDATED"
+    fi
+;;
+SYSTEM)
+;;
+esac
 
-fi # end of test for any missing group packages
+Progress_Report PACKAGES_REMO_SYST "PACKAGE UNINSTALLS: packages uninstalled, matches packages not listed in ${SCRIPTNAME}"
+Progress_Report AUR_REMO_SYST "AUR UNINSTALLS: aur packages uninstalled, matches packages not listed in ${SCRIPTNAME}"
+Progress_Report PACKAGES_REMO_CONF "PACKAGES REMOVED FROM ${SCRIPTNAME}: matches packages not installed to system"
+Progress_Report AUR_REMO_CONF "AUR REMOVED FROM ${SCRIPTNAME}: matches aur packages not installed to system"
 
-if [[ -n "${GROUP_PACKAGES_REMOVED_FROM_GROUP_[*]:-}" ]]
-then
-    # there are some removed packages
-    local _group
-    for _group in ${!GROUP_PACKAGES_REMOVED_FROM_GROUP_[*]}; do
-    if [[ -n "${GROUP_PACKAGES_REMOVED_FROM_GROUP_[$_group]}" ]]; then
-    if ! Is_True ${FORCE} && [[ "${MODE}" == "SYSTEM" ]]; then
-        # SYSTEM, NON FORCE MODE
-        UI_Passive_Alert "REMOVED from group \"${_group}\":"
-
-        Unset_Array ASK_AUTO_SOURCE_; ASK_AUTO_SOURCE_=(
-        [LIST_VALUE]="${GROUP_PACKAGES_REMOVED_FROM_GROUP_[$_group]}"
-        [QUERY_STRING]='Install ${_item}'
-        [ACTION_CMD]='Uninstall_Package "${_item}?'
-        [EXECUTED_LIST_CMD]='Unit_Report "REMOVED from repo group \"${_group}\", UNINSTALLED: ${_executed_list}"'
-        [SKIPPED_LIST_CMD]='Unit_Report "REMOVED from repo group \"${_group}\", UNINSTALL SKIPPED: ${_skipped_list}"'
-        [FAILED_LIST_CMD]='Unit_Report "REMOVED from repo group \"${_group}\", UNINSTALL FAILED: ${_failed_list}"'
-        [FORCE_VALUE]='${FORCE}'
-        [DEFAULT_CHOICE]='false'
-        ); Ask_Auto_Action ASK_AUTO_SOURCE_
-
-    else
-        Progress_Report "GROUP_PACKAGES_REMOVED_FROM_GROUP_[$_group]" "REMOVED from group \"${_group}\" (currently installed as part of group)"
-    fi; fi; done
-fi # end of test for any removed group packages
+[[ -z ${MODE_FINAL:-} ]] || Unit_Report "\n${MODE_FINAL}"
 
 # regen packages list in case of changes to group packages
 # TODO: could check if changes were made, but this is a low cost procedure

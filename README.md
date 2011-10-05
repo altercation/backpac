@@ -5,8 +5,18 @@ A package state snapshot and restore tool for Arch Linux with config file
 save/restore support. Allows system state to be easily committed to version 
 control such as git.
 
-Need
+Why?
 ----
+
+I wanted something simple to set up my Arch Linux machines, save state and 
+restore it. Lists, pacman, file backup, git. Backpac just glues some of these 
+pieces together.
+
+It needed to have very minimal requirements and work on fresh systems. Bash was 
+the obvious choice.
+
+Details
+-------
 
 It's a common method of setting up a single system: take some notes about what 
 packages you've installed, what files you've modified.
@@ -65,6 +75,30 @@ Here's a sample packages file created by backpac:
     flashplugin-beta freetype2-git-infinality git-annex haskell-json
     package-query-git packer wpa_auto xmonad-contrib-darcs xmonad-darcs
 
+This list could be created by hand as well and pacman would add to it as you 
+add packages to your system:
+
+    # my editing apps
+    vim gimp
+
+    # x stuff
+    xorg xmonad xmonad-contrib
+
+    # audio
+    alsa-utils
+
+    # AUR PACKAGES added by backpac on 2011-10-04
+    # -------------------------------------------------------------------------
+    flashplugin-beta freetype2-git-infinality git-annex haskell-json
+
+    # AUR PACKAGES REMOVED by backpac on 2011-10-04
+    # -------------------------------------------------------------------------
+    git-annex
+
+(this is just an example as you can tell by the fictitous installation of the 
+*entire* xorg package. don't do this. also, git-annex is neat and I wouldn't 
+remove it)
+
 Here's a sample groups list created by backpac:
 
     # GROUPS added by backpac on 2011-10-04
@@ -82,5 +116,37 @@ reused or rolled back.
 (run backpac without any command line arguments for information and path to the 
 default config directory).
 
+Usage
+-----
+
+Config
+------
+
+The backpac config is a directory containing the packages, groups, and files 
+lists as well as the files archive directory (files.d). By default it is 
+located at:
+
+    /home/USERNAME/.config/backpac/HOSTNAME/
+
+The specific location is dependent on the XDG config directory location on your 
+system, but it is by default ~/.config.
+
+This structure allows you to keep your entire backpac config directory under 
+version control and have backpac configs for each of your machines under 
+version control:
+
+    /home/USERNAME/.config/backpac/
+                                |
+                                +-my-desktop
+                                |
+                                +-my-laptop
+                                |
+                                +-test-machine
+                                |
+                                +-a-server
+
+The default location of the backpac config directory can be overridden by 
+exporting an environment variable named `BACKPAC_CONFIG` or can be set on the 
+command line using the -p <pathname> option.
 
 
