@@ -1,0 +1,20 @@
+#!/bin/bash
+
+# script specific functions
+# make use of script defined globals
+
+Noforce_Alert ()
+{
+    Is_True ${FORCE} || UI_Passive_Alert "${*}"
+}
+
+UI_Backup_Alert ()
+{
+    Is_True ${FORCE} && return 0
+    if [[ "${BACKUP_MODE}" == "${DEFAULT_BACKUP_MODE}" ]]
+    then
+        UI_Passive_Alert "$(echo ${*} "(backups will be made):")"
+    else
+        UI_Passive_Alert "$(echo ${*}):"
+    fi
+}

@@ -1,0 +1,40 @@
+#!/bin/bash
+
+_conf=~/.config/backpac/tau
+_files="$_conf/files"
+_filesd="$_files.d"
+
+rm -rf $_filesd
+mkdir -p $_filesd/test
+touch $_filesd/test/testfile_match
+touch $_filesd/test/testfile_overlay_only
+echo "mismatch" > $_filesd/test/testfile_mismatch_contents
+touch $_filesd/test/testfile_mismatch_attributes
+echo "mismatch" > $_filesd/test/testfile_mismatch_contents_attributes
+touch $_filesd/test/testfile_both_present_noattribs
+touch $_filesd/test/testfile_overlay_only_noattribs
+
+sudo rm -rf /test
+sudo mkdir -p /test
+sudo touch /test/testfile_match
+sudo touch /test/testfile_system_only
+sudo touch /test/testfile_mismatch_contents
+sudo touch /test/testfile_mismatch_attributes
+sudo touch /test/testfile_mismatch_contents_attributes
+sudo touch /test/testfile_both_present_noattribs
+sudo touch /test/testfile_system_only_noattribs
+
+cat > $_files <<EOF
+/test/testfile_match 644 root root
+/test/testfile_mismatch_attributes 755 root root
+/test/testfile_mismatch_contents 644 root root
+/test/testfile_mismatch_contents_attributes 755 root root
+/test/testfile_overlay_only 644 root root
+/test/testfile_system_only 644 root root
+/test/testfile_both_present_noattribs 
+/test/testfile_overlay_only_noattribs 
+/test/testfile_system_only_noattribs
+EOF
+
+
+
