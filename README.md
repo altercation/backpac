@@ -257,11 +257,11 @@ AUTOMATED Examples
 Both of these are the "extreme" cases of fully automated backpac config update 
 and system state updates.
 
-### JUST THE FACTS: No-changes, just a query report
+### No-changes, just a query report
 
     backpac -Qf
 
-### TAKE NO PRISONERS: Full backpac snapshot of the system
+### Full backpac snapshot of the system
 
     backpac -UFRb
 
@@ -277,7 +277,7 @@ commit to a git repository so I don't want them). Option details:
     -R  Sets removes (package names in this case) to default to YES
     -b  No backups (we'll use git instead)
 
-### WE ARE SPARTA: Full overwrite of system to conform to backpac state
+### Full overwrite of system to conform to backpac state
 
     backpac -SFRb
 
