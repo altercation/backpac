@@ -5,6 +5,13 @@ A package state snapshot and restore tool for Arch Linux with config file
 save/restore support. Allows system state to be easily committed to version 
 control such as git.
 
+Quickstart
+----------
+
+* Install from AUR (see install below).
+* Automatically generate first config with: `backpac -Uf`
+* View a report: `backpac -R` or `backpac -Rf` to skip the prompt
+
 Why?
 ----
 
