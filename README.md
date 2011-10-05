@@ -204,7 +204,7 @@ AUTOMATED Examples
 Both of these are the "extreme" cases of fully automated backpac config update 
 and system state updates.
 
-### TAKE NO PRISONERS:
+### TAKE NO PRISONERS: Full backpac snapshot of the system
 
     backpac -UFRb
 
@@ -221,7 +221,7 @@ commit to a git repository so I don't want them). Option details:
     -b  No backups (we'll use git instead)
 
 
-### WE ARE SPARTA
+### WE ARE SPARTA: Full overwrite of system to conform to backpac state
 
     backpac -SFRb
 
