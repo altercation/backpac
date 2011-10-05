@@ -40,8 +40,8 @@ LIBS_DIRPATH="$(dirname $0)/lib" # TODO: remove this
 CMDLINE_OPTIONS="${@}" # global so we can use in functions easily
 BACKUP_SUFFIX=".${SCRIPTNAME}-old" # cf man install
 DEFAULT_BACKUP_MODE=simple # cf man install
+GROUPS_FILENAME="groups"
 PACKAGES_FILENAME="packages"
-#AUR_FILENAME="aur"
 FILES_FILENAME="files"
 FILES_DIRNAME="${FILES_FILENAME}.d"
 
@@ -285,8 +285,8 @@ Install_Package_From_AUR "$AUR_HELPER"
 Options_Initialize || Fail_Critically "Error initializing options."
 
 # final path set based on options
+GROUPS_FILEPATH="${CONFIG_DIRPATH}/${GROUPS_FILENAME}"
 PACKAGES_FILEPATH="${CONFIG_DIRPATH}/${PACKAGES_FILENAME}"
-#AUR_FILEPATH="${CONFIG_DIRPATH}/${AUR_FILENAME}"
 FILES_FILEPATH="${CONFIG_DIRPATH}/${FILES_FILENAME}"
 FILES_DIRPATH="${CONFIG_DIRPATH}/${FILES_DIRNAME}"
 
@@ -344,6 +344,8 @@ UI_Passive_Alert "$_message"
 UNIT_Groups ()
 {
 
+Unit_Report "${PACKAGES_FILEPATH}"
+
 # DETECT GROUPS
 # ----------------------------------------------------------------------
 GROUPS_POTENTIAL=$(pacman -Qg | awk '{print $1}' | sort -u)
@@ -367,7 +369,7 @@ do
     fi
 done
 UI_Passive_Alert "Done\n"
-Progress_Report GROUPS_SYST "INSTALLED GROUPS (DETECTED>80% MEMBER PACKAGE INSTALL)"
+#Progress_Report GROUPS_SYST "INSTALLED GROUPS (DETECTED>80% MEMBER PACKAGE INSTALL)"
 
 # READ GROUPS FILE
 # ----------------------------------------------------------------------
@@ -391,12 +393,14 @@ do
     then
         #GROUP_PACKAGES_MISSING_IN_GROUP_[${_group}]="${_missing%% *}"
         GROUP_PACKAGES_MISS_SYST_[${_group}]="${_missing%% *}"
+        GROUP_PACKAGES_MISS_SYST+="(${_group}: ${_missing%% *})\n"
     fi
     local _removed="$(Set_Op_Difference "${GROUP_PACKAGES_SYST_[${_group}]}" "${GROUP_PACKAGES_REPO_[${_group}]}")"
     if [[ -n ${_removed:-} ]]
     then
         #GROUP_PACKAGES_REMOVED_FROM_GROUP_[${_group}]="${_removed%% *}"
         GROUP_PACKAGES_MISS_REPO_[${_group}]="${_removed%% *}"
+        GROUP_PACKAGES_MISS_REPO+="(${_group}: ${_removed%% *})\n"
     fi
 done
 
@@ -588,13 +592,15 @@ SYSTEM)
 ;;
 esac
 
-Progress_Report GROUPS_GOOD "GROUPS UP TO DATE: packages listed in ${SCRIPTNAME} also installed on system"
+Progress_Report GROUPS_GOOD "GROUPS UP TO DATE: group listed in ${SCRIPTNAME} and >80% local install"
 Progress_Report GROUPS_MISS_CONF "GROUPS NOT IN ${SCRIPTNAME}: installed groups not listed in ${SCRIPTNAME} config"
 Progress_Report GROUPS_MISS_SYST "GROUPS NOT INSTALLED: groups listed in ${SCRIPTNAME} config but not installed"
 Progress_Report GROUPS_INST_SYST "NEW GROUP INSTALLS: newly installed groups to match existing list in ${SCRIPTNAME}"
 Progress_Report GROUPS_INST_CONF "GROUPS ADDED TO ${SCRIPTNAME}: existing installed groups added to ${SCRIPTNAME} list"
 Progress_Report GROUPS_REMO_SYST "GROUP UNINSTALLS: groups uninstalled, matches groups not listed in ${SCRIPTNAME}"
 Progress_Report GROUPS_REMO_CONF "GROUPS REMOVED FROM ${SCRIPTNAME}: matches groups not installed to system"
+Progress_Report GROUP_PACKAGES_MISS_SYST "GROUP PACKAGES; MISSING?: group member packages not installed"
+Progress_Report GROUP_PACKAGES_MISS_REPO "GROUP PACKAGES; REMOVED?: installed packages not listed in group on repo"
 [[ -z ${MODE_FINAL:-} ]] || Unit_Report "\n${MODE_FINAL}"
 
 }
