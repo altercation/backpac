@@ -392,13 +392,17 @@ do
     if [[ -n ${_missing:-} ]]
     then
         GROUP_PACKAGES_MISS_SYST_[${_group}]="${_missing%% *}"
-        GROUP_PACKAGES_MISS_SYST+="(${_group}: ${_missing%% *})\n"
+        [[ -n ${GROUP_PACKAGES_MISS_SYST:-} ]] \
+        && GROUP_PACKAGES_MISS_SYST+="\n(${_group}: ${_missing%% *})" \
+        || GROUP_PACKAGES_MISS_SYST+="(${_group}: ${_missing%% *})"
     fi
     local _removed="$(Set_Op_Difference "${GROUP_PACKAGES_SYST_[${_group}]}" "${GROUP_PACKAGES_REPO_[${_group}]}")"
     if [[ -n ${_removed:-} ]]
     then
         GROUP_PACKAGES_MISS_REPO_[${_group}]="${_removed%% *}"
-        GROUP_PACKAGES_MISS_REPO+="(${_group}: ${_removed%% *})"
+        [[ -n ${GROUP_PACKAGES_MISS_REPO:-} ]] \
+        && GROUP_PACKAGES_MISS_REPO+="\n(${_group}: ${_removed%% *})" \
+        || GROUP_PACKAGES_MISS_REPO+="(${_group}: ${_removed%% *})"
     fi
 done
 fi # end of group currency check test
