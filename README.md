@@ -116,7 +116,8 @@ reused or rolled back.
 (run backpac without any command line arguments for information and path to the 
 default config directory).
 
-### Usage
+Usage
+-----
 
 Run `backpac` on the command line with no options to display basic usage 
 information.
@@ -174,4 +175,7 @@ The default location of the backpac config directory can be overridden by
 exporting an environment variable named `BACKPAC_CONFIG` or can be set on the 
 command line using the -p <pathname> option.
 
+Installation
+------------
 
+AUR

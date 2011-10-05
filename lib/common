@@ -147,7 +147,6 @@ Array_To_Report ()
     do
         eval [[ \$_line_num == \${#$_arrayname[@]} ]] && break
         eval _line="\${$_arrayname[$_line_num]:-}"
-        #[[ -z ${_line} ]] || echo -e "${_line}\\\n"
         [[ -z ${_line} ]] || Unit_Report "${_line}"
         let "_line_num+=1"
     done
