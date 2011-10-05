@@ -10,7 +10,7 @@ Quickstart
 
 * Install from AUR (see install below).
 * Automatically generate first config with: `backpac -Uf`
-* View a report: `backpac -R` or `backpac -Rf` to skip the prompt
+* View a report: `backpac -R` or `backpac -Rf` to skip prompts
 
 Why?
 ----
@@ -188,3 +188,12 @@ Installation
 ------------
 
 AUR
+
+Force
+-----
+
+Using the `-f` option skips interactive prompts, which are otherwise shown 
+prior to any 'write' operation.
+
+Using the `-F` option will additionally skip the initial prompt, useful for
+scripts or cron.
