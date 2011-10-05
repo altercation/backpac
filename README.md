@@ -131,26 +131,28 @@ information.
 
 ### BACKPAC OPTIONS SUMMARY:
 
-* `-b`    Backups ON; Files will be saved in place with backup suffix.
-* `-f`    Force mode OFF; Prompt before file write operations.
-* `-F`    Full Force mode OFF; Prompt displayed before script runs.
-* `-g`    Suppress group check OFF; Groups will be checked for currency.
-* `-h`    Display option and usage summary.
-* `-p`    Default backpac: /home/es/.config/backpac/tau.
-* `-R`    Simple Report OFF; Run with this ON to report with no system changes.
-* `-S`    System update OFF; No system files will be updated.
-* `-U`    backpac config update OFF; backpac files will not be updated.
+    -b     Turn off backups when copying new files to an existing path.
+    -F     DANGER: Force mode with automatic execution, NO-INITIAL PROMPT.
+    -f     Force all write operations; no prompts will be given.
+    -g     Suppress group currency check; Skip checking current group packages.
+    -h     Display option and usage summary.
+    -p     Specify full path to a custom backpac config directory.
+    -R     SAFELY Reports system and backpac config state; no changes made.
+    -S     Update LIVE system files/packages from backpac config.
+    -U     Update files in backpac config directory.
 
 ### USAGE SUMMARY:
-* `backpac -R`     Show a report; no changes made to system (try this first!)
-* `backpac -U`     Create a new or update existing backpac config
-* `backpac -S`     Update live system to match current backpac config
 
-* Adding `-f` will skip normal prompts prior to write operations.
-* Adding `-F` will skip the initial prompt as well as all subsequent prompts.
+    backpac -R     Show a report; no changes made to system (try this first!)
+    backpac -U     Create a new or update existing backpac config
+    backpac -S     Update live system to match current backpac config
+
+    Adding -f will skip normal prompts prior to write operations.
+    Adding -F will skip the initial prompt as well as all subsequent prompts.
 
 ### FIRST RUN / AUTOMATIC UPDATE:
-`backpac -Uf`     Automatically create a backpac config from system state.
+
+    backpac -Uf     Automatically create a backpac config from system state.
 
 Config
 ------

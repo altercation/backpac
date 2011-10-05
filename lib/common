@@ -453,7 +453,15 @@ done
 Usage ()
 {
     UI_Passive_Alert "\n$(Upper_Case "${SCRIPTNAME:-0} options summary:")\n${HR}"
-    local _option_summary="$(Options_Summary "  ")"
+    #local _option_summary="$(Options_Summary "  ")"
+local _option_array
+local _string=
+for _option_array in ${!OPT_*}
+do
+    _p="  "
+    eval _string+=\"${_p:0:1}-\${$_option_array[FLAG]%:}${_p:1:1}\\t\${$_option_array[USAGE]:-}\\\n\"
+done
+local _option_summary="$(echo -en "${_string}" | sort)"
     [[ -z ${_option_summary:-} ]] || UI_Passive_Alert "${_option_summary}"
     [[ -n ${USAGE_SYSTEM_CONFIG:-} ]] && UI_Passive_Alert "${USAGE_CONFIG_STATE:-}"
     [[ -n ${USAGE_SUMMARY:-} ]] && UI_Passive_Alert "${USAGE_SUMMARY}"
