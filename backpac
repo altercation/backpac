@@ -344,7 +344,7 @@ UI_Passive_Alert "$_message"
 UNIT_Groups ()
 {
 
-Unit_Report "${PACKAGES_FILEPATH}"
+Unit_Report "${GROUPS_FILEPATH}"
 
 # DETECT GROUPS
 # ----------------------------------------------------------------------
@@ -402,67 +402,6 @@ do
     fi
 done
 fi # end of group currency check test
-
-#local _runagain_alert="Run again in system update mode (non 
-#-${OPT_FORCE_[FLAG]} forced mode) to be presented a prompt for installation of 
-#these, or install manually."
-#
-#local _skip_alert="Run ${SCRIPTNAME} with the 
-#-${OPT_GROUP_CURRENCY_CHECK_[FLAG]} command line option to skip this group 
-#package currency check."
-#
-#if [[ -n "${GROUP_PACKAGES_MISSING_IN_GROUP_[*]:-}" ]]
-#then
-#    # there are some missing packages
-#    local _group
-#    for _group in ${!GROUP_PACKAGES_MISSING_IN_GROUP_[*]}; do
-#    if [[ -n "${GROUP_PACKAGES_MISSING_IN_GROUP_[$_group]}" ]]; then
-#    if ! Is_True ${FORCE} && [[ "${MODE}" == "SYSTEM" ]]; then
-#        UI_Passive_Alert "MISSING from group \"${_group}\":"
-#
-#        Unset_Array ASK_AUTO_SOURCE_; ASK_AUTO_SOURCE_=(
-#        [LIST_VALUE]="${GROUP_PACKAGES_MISSING_IN_GROUP_[$_group]}"
-#        [QUERY_STRING]='Install ${_item}?'
-#        [ACTION_CMD]='Install_Package "${_item}"'
-#        [EXECUTED_LIST_CMD]='Unit_Report "MISSING from group \"${_group}\", INSTALLED: ${_executed_list}"'
-#        [SKIPPED_LIST_CMD]='Unit_Report "MISSING from group \"${_group}\", INSTALL SKIPPED: ${_skipped_list}"'
-#        [FAILED_LIST_CMD]='Unit_Report "MISSING from group \"${_group}\", INSTALL FAILED: ${_failed_list}"'
-#        [FORCE_VALUE]='${FORCE}'
-#        [DEFAULT_CHOICE]='false'
-#        ); Ask_Auto_Action ASK_AUTO_SOURCE_
-#    else
-#        # not in non-force system update mode
-#        Progress_Report "GROUP_PACKAGES_MISSING_IN_GROUP_[$_group]" "MISSING from group \"${_group}\""
-#    fi; fi; done
-#
-#fi # end of test for any missing group packages
-#
-#if [[ -n "${GROUP_PACKAGES_REMOVED_FROM_GROUP_[*]:-}" ]]
-#then
-#    # there are some removed packages
-#    local _group
-#    for _group in ${!GROUP_PACKAGES_REMOVED_FROM_GROUP_[*]}; do
-#    if [[ -n "${GROUP_PACKAGES_REMOVED_FROM_GROUP_[$_group]}" ]]; then
-#    if ! Is_True ${FORCE} && [[ "${MODE}" == "SYSTEM" ]]; then
-#        # SYSTEM, NON FORCE MODE
-#        UI_Passive_Alert "REMOVED from group \"${_group}\":"
-#
-#        Unset_Array ASK_AUTO_SOURCE_; ASK_AUTO_SOURCE_=(
-#        [LIST_VALUE]="${GROUP_PACKAGES_REMOVED_FROM_GROUP_[$_group]}"
-#        [QUERY_STRING]='Install ${_item}'
-#        [ACTION_CMD]='Uninstall_Package "${_item}?'
-#        [EXECUTED_LIST_CMD]='Unit_Report "REMOVED from repo group \"${_group}\", UNINSTALLED: ${_executed_list}"'
-#        [SKIPPED_LIST_CMD]='Unit_Report "REMOVED from repo group \"${_group}\", UNINSTALL SKIPPED: ${_skipped_list}"'
-#        [FAILED_LIST_CMD]='Unit_Report "REMOVED from repo group \"${_group}\", UNINSTALL FAILED: ${_failed_list}"'
-#        [FORCE_VALUE]='${FORCE}'
-#        [DEFAULT_CHOICE]='false'
-#        ); Ask_Auto_Action ASK_AUTO_SOURCE_
-#
-#    else
-#        Progress_Report "GROUP_PACKAGES_REMOVED_FROM_GROUP_[$_group]" "REMOVED from group \"${_group}\" (currently installed as part of group)"
-#    fi; fi; done
-#fi # end of test for any removed group packages
-
 
 CHANGE_MADE=false
 case $MODE in
@@ -628,7 +567,7 @@ SYSTEM)
 ;;
 esac
 
-# TODO: move this to the system section and add back the package install 
+# TODO: move this to the system section
 # section
 # regen packages list in case of changes to group packages
 if Is_True ${CHANGE_MADE}
@@ -641,6 +580,7 @@ then
     done
 fi
 
+# TODO: add group packages loop
 Progress_Report GROUPS_GOOD "GROUPS UP TO DATE: group listed in ${SCRIPTNAME} and >80% local install"
 Progress_Report GROUPS_MISS_CONF "GROUPS NOT IN ${SCRIPTNAME}: installed groups not listed in ${SCRIPTNAME} config"
 Progress_Report GROUPS_MISS_SYST "GROUPS NOT INSTALLED: groups listed in ${SCRIPTNAME} config but not installed"
