@@ -395,6 +395,13 @@ Option_Is_Set ()
 
 Unframe_Reframe ()
 {
+    # example
+    # Unframe_Reframe Prefix Infix Suffix
+    # will return "PrefixInfixSuffix" when passed the following:
+    # * InfixSuffix
+    # * PrefixSuffix
+    # * PrefixSuffixInfix
+    # * Infix
     local _lstring="${1}"
     local _mstring="${2}"
     local _rstring="${3}"
@@ -448,6 +455,21 @@ do
         fi
     fi
 done
+}
+
+If_Opt_Display ()
+{
+    local _opt_name="$(Unframe_Reframe "OPT_" "${1}" "_")"
+    local _display_string="${2}"
+    eval "local _opt_set=\${$_opt_name[SET]:-}"
+    [[ -n ${_opt_set} ]] && echo -n "${2}"
+}
+If_No_Opt_Display ()
+{
+    local _opt_name="$(Unframe_Reframe "OPT_" "${1}" "_")"
+    local _display_string="${2}"
+    eval "local _opt_set=\${$_opt_name[SET]:-}"
+    [[ -n ${_opt_set} ]] || echo -n "${2}"
 }
 
 Usage ()

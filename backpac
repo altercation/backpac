@@ -111,16 +111,15 @@ OPT_SYSTEM_UPDATE_=(
 [PRERUN_CONDITIONALS]='FORCE FULL_FORCE'
 [PRERUN]='SYSTEM UPDATE MODE will PROMPT for the following:
 
-* install packages listed in ${SCRIPTNAME} config
-* uninstall packages not in ${SCRIPTNAME} config
-* install new group packages
-* remove old group packages
-* install ${SCRIPTNAME} files to system'
+* Install groups/packages listed in ${SCRIPTNAME} config
+* Uninstall groups/packages not listed in ${SCRIPTNAME} config
+* Install new group packages, remove old group packages (if any)
+* Install ${SCRIPTNAME} files to system from:\n  ${FILES_DIRPATH}'
 [PRERUN_FORCE]='SYSTEM UPDATE (FORCE) MODE will AUTOMATICALLY execute:
 
-* install packages listed in ${SCRIPTNAME} config
-* install new group packages
-* install ${SCRIPTNAME} files to system'
+* Install groups/packages listed in ${SCRIPTNAME} config
+* Install new group packages (if any)
+* Install ${SCRIPTNAME} files to system from\n  ${FILES_DIRPATH}.$(If_Opt_Display AUTO_REMOVE "\n* Remove group packages if no longer part of group list in the repos. (-${OPT_AUTO_REMOVE_[FLAG]})\n* Remove fully installed groups if not listed in ${SCRIPTNAME} groups list. (-${OPT_AUTO_REMOVE_[FLAG]})\n* Remove packages if not listed in ${SCRIPTNAME} packages list. (-${OPT_AUTO_REMOVE_[FLAG]})")$(If_No_Opt_Display AUTO_REMOVE "\n* Non-listed groups/packages and old group packages will not be removed\n  (use the -${OPT_AUTO_REMOVE_[FLAG]} option to enable automatic removal)")'
 [PRERUN_FULL_FORCE]=''
 )
 OPT_CONFIG_UPDATE_=(
@@ -133,21 +132,14 @@ OPT_CONFIG_UPDATE_=(
 [PRERUN_CONDITIONALS]='FORCE FULL_FORCE'
 [PRERUN]='$(Upper_Case ${SCRIPTNAME}) CONFIG UPDATE MODE will PROMPT for the following:
 
-* Packages in the ${SCRIPTNAME} config, but not installed on the system, will
-  be optionally (prompted) removed from the ${SCRIPTNAME} packages list.
-
-* Currently installed packages not yet included in the ${SCRIPTNAME} config
-  will be optionally (prompted) added to the ${SCRIPTNAME} packages list.
-
-* Files listed in the ${SCRIPTNAME} files list will optionally 
-  (prompt) be updated from the current version on the live system and saved in the directory ${FILES_DIRPATH}.'
+* Add installed group names to the ${SCRIPTNAME} groups list.
+* Add installed package names to the ${SCRIPTNAME} packages list.
+* Remove non-installed package names from ${SCRIPTNAME} packages list.
+* Save a snapshot of files listed in the ${SCRIPTNAME} files list to:\n  ${FILES_DIRPATH}'
 [PRERUN_FORCE]='$(Upper_Case ${SCRIPTNAME}) CONFIG UPDATE (FORCE) MODE will AUTOMATICALLY execute:
 
-* Currently installed packages not yet included in the ${SCRIPTNAME} config
-  will be automatically (no prompt) added to the ${SCRIPTNAME} packages list.
-
-* Files listed in the ${SCRIPTNAME} files list will automatically 
-  (no prompt) be updated from the current version on the live system and saved in the directory ${FILES_DIRPATH}'
+* Add installed package names to the ${SCRIPTNAME} packages list.
+* Save a snapshot of files listed in the ${SCRIPTNAME} files list to:\n  ${FILES_DIRPATH}. $(If_Opt_Display AUTO_REMOVE "\n* Remove non-installed group names from ${SCRIPTNAME} groups list. (-${OPT_AUTO_REMOVE_[FLAG]})\n* Remove non-installed package names from ${SCRIPTNAME} packages list. (-${OPT_AUTO_REMOVE_[FLAG]})") $(If_No_Opt_Display AUTO_REMOVE "\n* Non-installed groups/packages will not be removed from ${SCRIPTNAME} lists\n  (use the -${OPT_AUTO_REMOVE_[FLAG]} option to enable automatic removal)")'
 [PRERUN_FULL_FORCE]=''
 )
 OPT_FORCE_=(
@@ -180,18 +172,7 @@ non-force mode (prompts are still presented for user-selection at each
 write/add/remove operation). Running in -${OPT_FORCE_[FLAG]} force mode with 
 Auto-Remove would automatically set uninstall/remove actions to YES.'
 [PRERUN_SIMPLE_QUERY]='NOTE: Auto-Remove will have no effect when run in query mode (query mode makes no changes, additions, removals).'
-[PRERUN_FORCE]='WARNING: Auto-Remove is ON and with the current force option 
-set, any removal actions (uninstalls of packages and groups, removal of items 
-from the package list) will be automatically performed:
-
-SYSTEM MODE:
-* uninstall groups not listed in ${SCRIPTNAME} config
-* uninstall (out of date) group packages not listed in official repositories
-* uninstall packages not listed in ${SCRIPTNAME} config
-
-UPDATE CONFIG MODE:
-* remove groups not installed from the ${SCRIPTNAME} config
-* remove packages not installed from the ${SCRIPTNAME} config'
+[PRERUN_FORCE]='WARNING: Auto-Remove is ON and with the current force option set, any removal actions (uninstalls of packages and groups, removal of items from the package list) will be automatically performed'
 [PRERUN_FULL_FORCE]=''
 [PRERUN_CONFIG_UPDATE]='WARNING: $(Upper_Case ${SCRIPTNAME}) CONFIG FILES WILL BE OVERWRITTEN WITHOUT BACKUP.'
 )
