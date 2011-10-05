@@ -8,7 +8,8 @@ control such as git.
 Quickstart
 ----------
 
-* Install from AUR (see install below).
+* Install from AUR: https://aur.archlinux.org/packages.php?ID=52957
+  (see install below).
 * Automatically generate first config with: `backpac -Uf`
 * View a report: `backpac -Q` or `backpac -Qf` to skip prompts
 
@@ -240,7 +241,7 @@ command line using the -p <pathname> option.
 Installation
 ------------
 
-AUR
+AUR Package: https://aur.archlinux.org/packages.php?ID=52957
 
 Force
 -----
