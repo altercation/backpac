@@ -289,3 +289,74 @@ overwrites system files with the backpac versions *with no backup*.
     -F  Skip initial prompt and take default action for all changes
     -R  Sets removes (uninstalls in this case) to default to YES
     -b  No backups (danger! don't use this if you want to backup current files)
+
+Sample Output
+-------------
+
+    $ backpac -Qf
+
+    backpac
+    ----------------------------------------------------------------------------
+    (-b)	Backups ON; Files will be saved in place with backup suffix.
+    -f	Force mode ON; No prompts presented (CAUTION).
+    (-F)	Full Force mode OFF; Prompt displayed before script runs.
+    (-g)	Suppress group check OFF; Groups will be checked for currency.
+    (-h)	Display option and usage summary.
+    (-p)	Default backpac: /home/es/.config/backpac/tau.
+    -Q	Simple Query ON; Report shown; no changes made to system.
+    (-R)	Auto-Remove OFF; Remove/Uninstall action default to NO.
+    (-S)	System update OFF; No system files will be updated.
+    (-U)	backpac config update OFF; backpac files will not be updated.
+
+    Sourcing from backpac config directory: /home/es/.config/backpac/tau
+
+    Initializing.................Done
+
+
+    GROUPS
+    ============================================================================
+    /home/es/.config/backpac/tau/groups
+
+    GROUPS UP TO DATE: group listed in backpac and >80% local install:
+    ----------------------------------------------------------------------------
+    base base-devel xfce4 xorg xorg-apps xorg-drivers xorg-fonts
+
+    GROUP PACKAGES; MISSING?: group member packages not installed:
+    ----------------------------------------------------------------------------
+    (base: nano)
+    (xfce4: thunar xfdesktop)
+
+
+    PACKAGES
+    ============================================================================
+    /home/es/.config/backpac/tau/packages
+
+    PACKAGES UP TO DATE: packages listed in backpac also installed on system:
+    ----------------------------------------------------------------------------
+    acpi acpid acpitool aif alsa-utils augeas cowsay cpufrequtils curl dialog
+    firefox gamin git ifplugd iw mesa mesa-demos mutt netcfg openssh rfkill
+    rsync rxvt-unicode sudo terminus-font vim wpa_actiond wpa_supplicant_gui
+    xmobar xorg-server-utils xorg-twm xorg-utils xorg-xclock xorg-xinit xterm
+    yacpi yajl youtube-dl zsh
+
+    AUR UP TO DATE: aur packages listed in backpac also installed on system:
+    ----------------------------------------------------------------------------
+    flashplugin-beta freetype2-git-infinality git-annex haskell-json
+    package-query-git packer wpa_auto xmonad-contrib-darcs xmonad-darcs
+
+    AUR NOT IN backpac: installed aur packages not listed in backpac config:
+    ----------------------------------------------------------------------------
+    yaourt-git
+
+
+    FILES
+    ============================================================================
+    /home/es/.config/backpac/tau/files
+
+    MATCHES ON SYSTEM/CONFIG:
+    ----------------------------------------------------------------------------
+    /boot/grub/menu.lst
+    /etc/acpi/handler.sh
+    /etc/rc.conf
+    /etc/rc.local
+
