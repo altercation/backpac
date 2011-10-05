@@ -1,0 +1,21 @@
+
+# PACKAGES added by backpac on 2011-10-04
+# ------------------------------------------------------------------------------
+mutt acpi acpid acpitool aif alsa-utils augeas cowsay cpufrequtils curl dialog
+firefox gamin git ifplugd iw mesa mesa-demos netcfg openssh rfkill rsync
+rxvt-unicode mutt sudo terminus-font vim wpa_actiond wpa_supplicant_gui xmobar
+xorg-server-utils mutt_git xorg-twm xorg-utils xorg-xclock xorg-xinit xterm yacpi
+yajl youtube-dl zsh mutt
+
+# AUR PACKAGES added by backpac on 2011-10-04
+# ------------------------------------------------------------------------------
+flashplugin-beta freetype2-git-infinality git-annex haskell-json mutt-git
+package-query-git packer wpa_auto xmonad-contrib-darcs xmonad-darcs yaourt-git
+
+# PACKAGES REMOVED by backpac on 2011-10-05
+# ------------------------------------------------------------------------------
+# mutt
+
+# AUR PACKAGES REMOVED by backpac on 2011-10-05
+# ------------------------------------------------------------------------------
+# mutt-git

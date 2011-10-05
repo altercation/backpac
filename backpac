@@ -119,9 +119,7 @@ OPT_SYSTEM_UPDATE_=(
 [PRERUN_FORCE]='SYSTEM UPDATE (FORCE) MODE will AUTOMATICALLY execute:
 
 * install packages listed in ${SCRIPTNAME} config
-* uninstall packages not in ${SCRIPTNAME} config
 * install new group packages
-* remove old group packages
 * install ${SCRIPTNAME} files to system'
 [PRERUN_FULL_FORCE]=''
 )
@@ -143,10 +141,7 @@ OPT_CONFIG_UPDATE_=(
 
 * Files listed in the ${SCRIPTNAME} files list will optionally 
   (prompt) be updated from the current version on the live system and saved in the directory ${FILES_DIRPATH}.'
-[PRERUN_FORCE]='$(Upper_Case ${SCRIPTNAME}) UPDATE (FORCE) MODE will AUTOMATICALLY execute:
-
-* Packages in the ${SCRIPTNAME} config, but not installed on the system, will
-  be automatically (no prompt) removed from the ${SCRIPTNAME} packages list.
+[PRERUN_FORCE]='$(Upper_Case ${SCRIPTNAME}) CONFIG UPDATE (FORCE) MODE will AUTOMATICALLY execute:
 
 * Currently installed packages not yet included in the ${SCRIPTNAME} config
   will be automatically (no prompt) added to the ${SCRIPTNAME} packages list.
@@ -171,6 +166,34 @@ OPT_FULL_FORCE_=(
 [ALERT]='Full Force mode OFF; Prompt displayed before script runs.'
 [ALERT_SET]='Full Force mode ON; Prompt not displayed before script runs.'
 [USAGE]='DANGER: Force mode with automatic execution, NO-INITIAL PROMPT.'
+)
+OPT_AUTO_REMOVE_=(
+[FLAG]='R'
+[STATE]='false'
+[STATE_SET]='true'
+[ALERT]='Auto-Remove OFF; Remove/Uninstall action default to NO.'
+[ALERT_SET]='Auto-Remove ON; Remove/Uninstall action default to YES.'
+[USAGE]='DANGER: Auto-Remove; Remove/Uninstall actions default to YES.'
+[PRERUN_CONDITIONALS]='FORCE FULL_FORCE SIMPLE_QUERY'
+[PRERUN]='WARNING: Auto-Remove is ON but will have no effect when run in 
+non-force mode (prompts are still presented for user-selection at each 
+write/add/remove operation). Running in -${OPT_FORCE_[FLAG]} force mode with 
+Auto-Remove would automatically set uninstall/remove actions to YES.'
+[PRERUN_SIMPLE_QUERY]='NOTE: Auto-Remove will have no effect when run in query mode (query mode makes no changes, additions, removals).'
+[PRERUN_FORCE]='WARNING: Auto-Remove is ON and with the current force option 
+set, any removal actions (uninstalls of packages and groups, removal of items 
+from the package list) will be automatically performed:
+
+SYSTEM MODE:
+* uninstall groups not listed in ${SCRIPTNAME} config
+* uninstall (out of date) group packages not listed in official repositories
+* uninstall packages not listed in ${SCRIPTNAME} config
+
+UPDATE CONFIG MODE:
+* remove groups not installed from the ${SCRIPTNAME} config
+* remove packages not installed from the ${SCRIPTNAME} config'
+[PRERUN_FULL_FORCE]=''
+[PRERUN_CONFIG_UPDATE]='WARNING: $(Upper_Case ${SCRIPTNAME}) CONFIG FILES WILL BE OVERWRITTEN WITHOUT BACKUP.'
 )
 OPT_GROUP_CURRENCY_CHECK_=(
 [FLAG]='g'
@@ -212,17 +235,16 @@ OPT_CONFIG_DIRPATH_=(
 [ALERT_SET]='Custom ${SCRIPTNAME}: ${CONFIG_DIRPATH}.'
 [USAGE]="Specify full path to a custom ${SCRIPTNAME} config directory."
 )
-OPT_SIMPLE_REPORT_=(
-[FLAG]='R'
+OPT_SIMPLE_QUERY_=(
+[FLAG]='Q'
 [STATE]='false'
 [STATE_SET]='true'
 [CONFLICTS]='CONFIG_UPDATE SYSTEM_UPDATE'
-[ALERT]='Simple Report OFF; Run with this ON to report with no system changes.'
-[ALERT_SET]='Simple Report ON; Report shown; no changes made to system.'
-[USAGE]="SAFELY Reports system and ${SCRIPTNAME} config state; no changes made."
+[ALERT]='Simple Query OFF; Run with this ON to report with no system changes.'
+[ALERT_SET]='Simple Query ON; Report shown; no changes made to system.'
+[USAGE]="SAFELY queries & reports system/${SCRIPTNAME} config state; no changes."
 [PRERUN_CONDITIONALS]='FORCE FULL_FORCE'
-[PRERUN]='SIMPLE REPORT MODE:
-SAFELY Reports system and ${SCRIPTNAME} config state; no will be changes made.'
+[PRERUN]='SIMPLE QUERY MODE: SAFELY Queries and reports system/${SCRIPTNAME} config state; no changes made.'
 [PRERUN_FORCE]=''
 [PRERUN_FULL_FORCE]=''
 )
@@ -233,9 +255,9 @@ OPT_BACKUP_MODE_=(
 [ALERT]='Backups ON; Files will be saved in place with backup suffix.'
 [ALERT_SET]='Backups OFF; Files will be overwritten.'
 [USAGE]='Turn off backups when copying new files to an existing path.'
-[PRERUN_CONDITIONALS]='SYSTEM_UPDATE CONFIG_UPDATE'
-[PRERUN_SYSTEM_UPDATE]='WARNING: SYSTEM FILES WILL BE OVERWRITTEN WITHOUT BACKUP.'
-[PRERUN_CONFIG_UPDATE]='WARNING: $(Upper_Case ${SCRIPTNAME}) CONFIG FILES WILL BE OVERWRITTEN WITHOUT BACKUP.'
+[PRERUN_CONDITIONALS]='FULL_FORCE'
+[PRERUN]='WARNING: UPDATED FILES WILL BE OVERWRITTEN WITHOUT BACKUP.'
+[PRERUN_FULL_FORCE]=''
 )
 OPT_HELP_=(
 [FLAG]='h'
@@ -251,7 +273,7 @@ Change with -${OPT_CONFIG_DIRPATH_[FLAG]} <custompath> or set ${CONFIG_DIRPATH_E
 CURRENT AUR HELPER: ${AUR_HELPER}
 Change with AUR_HELPER in your environment."
 USAGE_SUMMARY="\nUSAGE SUMMARY:\n${HR}
-${SCRIPTNAME} -${OPT_SIMPLE_REPORT_[FLAG]}\tShow a report; no changes made to system (try this first!)
+${SCRIPTNAME} -${OPT_SIMPLE_QUERY_[FLAG]}\tShow a report; no changes made to system (try this first!)
 ${SCRIPTNAME} -${OPT_CONFIG_UPDATE_[FLAG]}\tCreate a new or update existing ${SCRIPTNAME} config
 ${SCRIPTNAME} -${OPT_SYSTEM_UPDATE_[FLAG]}\tUpdate live system to match current ${SCRIPTNAME} config
 
@@ -294,7 +316,7 @@ FILES_DIRPATH="${CONFIG_DIRPATH}/${FILES_DIRNAME}"
 Is_True ${FULL_FORCE} && FORCE=true
 
 # set execution mode
-if   Is_True ${SIMPLE_REPORT:-}; then MODE=REPORT
+if   Is_True ${SIMPLE_QUERY:-}; then MODE=QUERY
 elif Is_True ${CONFIG_UPDATE:-}; then MODE=CONFIG
 elif Is_True ${SYSTEM_UPDATE:-}; then MODE=SYSTEM
 else Usage; UNIT_Clean_Up; exit
@@ -330,7 +352,7 @@ fi
 
 local _message="\nSourcing from ${SCRIPTNAME} config directory: ${CONFIG_DIRPATH}"
 UI_Passive_Alert "$_message"
-# if [[ "${MODE}" != "REPORT" ]] && ! Is_True ${FORCE}
+# if [[ "${MODE}" != "QUERY" ]] && ! Is_True ${FORCE}
 # then
 #     UI_Passive_Alert "$_message"
 # fi
@@ -438,11 +460,11 @@ CONFIG) # Condition add all, conditional remove all
     [LIST_VAR_NAME]='GROUPS_MISS_SYST'
     [QUERY_STRING]='\n${_item}\nRemove group name from ${SCRIPTNAME} config?'
     [ACTION_CMD]='Add_To GROUPS_REMO_CONF "${_item}"; Remove_From GROUPS_MISS_SYST "${_item}"; CHANGE_MADE=true; '
-    [DEFAULT_CHOICE]='true'
     [EXECUTED_CMD]='Noforce_Alert "(removed)";'
     [SKIPPED_CMD]='Noforce_Alert "(skipped)"'
     [FAILED_CMD]='Noforce_Alert "(remove failed!)"'
     [FORCE_VALUE]='${FORCE}'
+    [DEFAULT_CHOICE]='${AUTO_REMOVE}'
     ); Ask_Auto_Action ASK_AUTO_SOURCE_;
     fi
 
@@ -464,10 +486,10 @@ CONFIG) # Condition add all, conditional remove all
         # include a summary of removed packages
         if [[ -n ${GROUPS_REMO_CONF:-} ]]
         then
-            local _package_name
-            for _package_name in ${GROUPS_REMO_CONF}
+            local _group_name
+            for _group_name in ${GROUPS_REMO_CONF}
             do
-                sed -i "/^[[:space:]]*#/!s/\<${_package_name}\> \?//" "${TMPDIR}/${GROUPS_FILENAME}"
+                Remove_Item_From_File "${_group_name}" "${TMPDIR}/${GROUPS_FILENAME}"
             done
             echo -e "\n# GROUPS REMOVED by ${SCRIPTNAME} on $(date +%F)" >> "${TMPDIR}/${GROUPS_FILENAME}"
             echo "# ${HR%--}" >> "${TMPDIR}/${GROUPS_FILENAME}"
@@ -499,7 +521,7 @@ SYSTEM)
     [SKIPPED_CMD]='Noforce_Alert "(skipped)"'
     [FAILED_CMD]='Noforce_Alert "(uninstall failed!)"'
     [FORCE_VALUE]='${FORCE}'
-    [DEFAULT_CHOICE]='false'
+    [DEFAULT_CHOICE]='${AUTO_REMOVE}'
     ); Ask_Auto_Action ASK_AUTO_SOURCE_;
     fi
 
@@ -556,11 +578,11 @@ SYSTEM)
             [LIST_VAR_NAME]="GROUP_PACKAGES_MISS_REPO_[${a_group}]"
             [QUERY_STRING]='\n${_item}\nUninstall old group member package?'
             [ACTION_CMD]='Uninstall_Package "${_item}"'
-            [DEFAULT_CHOICE]='true'
             [EXECUTED_CMD]='Noforce_Alert "(uninstalled)"; Add_To GROUP_PACKAGES_REMO_SYST ${_item}; Remove_From GROUP_PACKAGES_MISS_REPO_[$a_group] "${_item}"; CHANGE_MADE=true;'
             [SKIPPED_CMD]='Noforce_Alert "(skipped)"'
             [FAILED_CMD]='Noforce_Alert "(uninstalled failed!)"'
             [FORCE_VALUE]='${FORCE}'
+            [DEFAULT_CHOICE]='${AUTO_REMOVE}'
             ); Ask_Auto_Action ASK_AUTO_SOURCE_;
             fi
             done
@@ -635,7 +657,7 @@ AUR_GOOD="$(Set_Op_Intersection "${AUR_CONF}" "${AUR_SYST}")"
 CHANGE_MADE=false
 
 case $MODE in
-CONFIG) # Condition add all, conditional remove all
+CONFIG)
 
     # PACKAGES MISSING FROM CONFIG
     # -------------------------------------------------------------------------
@@ -682,28 +704,28 @@ CONFIG) # Condition add all, conditional remove all
     [LIST_VAR_NAME]='PACKAGES_MISS_SYST'
     [QUERY_STRING]='\n${_item}\nRemove package name from ${SCRIPTNAME} config?'
     [ACTION_CMD]='Add_To PACKAGES_REMO_CONF "${_item}"; Remove_From PACKAGES_MISS_SYST "${_item}"; CHANGE_MADE=true; '
-    [DEFAULT_CHOICE]='true'
     [EXECUTED_CMD]='Noforce_Alert "(removed)";'
     [SKIPPED_CMD]='Noforce_Alert "(skipped)"'
     [FAILED_CMD]='Noforce_Alert "(remove failed!)"'
     [FORCE_VALUE]='${FORCE}'
+    [DEFAULT_CHOICE]='${AUTO_REMOVE}'
     ); Ask_Auto_Action ASK_AUTO_SOURCE_;
     fi
 
     # AUR MISSING FROM SYSTEM
     # -------------------------------------------------------------------------
-    if [[ -n ${PACKAGES_MISS_SYST[*]:-} ]]; then
+    if [[ -n ${AUR_MISS_SYST[*]:-} ]]; then
     UI_Backup_Alert "\nREMOVE AUR PACKAGES THAT AREN'T CURRENTLY INSTALLED?\n${HR}\nThe following aur packages are not installed on your 
     system but *are* listed in your ${SCRIPTNAME} aur package list. Please choose whether to remove each item from the ${SCRIPTNAME} package list"
     Unset_Array ASK_AUTO_SOURCE_; ASK_AUTO_SOURCE_=(
     [LIST_VAR_NAME]='AUR_MISS_SYST'
     [QUERY_STRING]='\n${_item}\nRemove aur package name from ${SCRIPTNAME} config?'
     [ACTION_CMD]='Add_To AUR_REMO_CONF "${_item}"; Remove_From AUR_MISS_SYST "${_item}"; CHANGE_MADE=true; '
-    [DEFAULT_CHOICE]='true'
     [EXECUTED_CMD]='Noforce_Alert "(removed)";'
     [SKIPPED_CMD]='Noforce_Alert "(skipped)"'
     [FAILED_CMD]='Noforce_Alert "(remove failed!)"'
     [FORCE_VALUE]='${FORCE}'
+    [DEFAULT_CHOICE]='${AUTO_REMOVE}'
     ); Ask_Auto_Action ASK_AUTO_SOURCE_;
     fi
 
@@ -734,7 +756,7 @@ CONFIG) # Condition add all, conditional remove all
             local _package_name
             for _package_name in ${PACKAGES_REMO_CONF}
             do
-                sed -i "/^[[:space:]]*#/!s/\<${_package_name}\> \?//" "${TMPDIR}/${PACKAGES_FILENAME}"
+                Remove_Item_From_File "${_package_name}" "${TMPDIR}/${PACKAGES_FILENAME}"
             done
             echo -e "\n# PACKAGES REMOVED by ${SCRIPTNAME} on $(date +%F)" >> "${TMPDIR}/${PACKAGES_FILENAME}"
             echo "# ${HR%--}" >> "${TMPDIR}/${PACKAGES_FILENAME}"
@@ -745,7 +767,7 @@ CONFIG) # Condition add all, conditional remove all
             local _package_name
             for _package_name in ${AUR_REMO_CONF}
             do
-                sed -i "/^[[:space:]]*#/!s/\<${_package_name}\> \?//" "${TMPDIR}/${PACKAGES_FILENAME}"
+                Remove_Item_From_File "${_package_name}" "${TMPDIR}/${PACKAGES_FILENAME}"
             done
             echo -e "\n# AUR PACKAGES REMOVED by ${SCRIPTNAME} on $(date +%F)" >> "${TMPDIR}/${PACKAGES_FILENAME}"
             echo "# ${HR%--}" >> "${TMPDIR}/${PACKAGES_FILENAME}"
@@ -777,7 +799,7 @@ SYSTEM)
     [SKIPPED_CMD]='Noforce_Alert "(skipped)"'
     [FAILED_CMD]='Noforce_Alert "(uninstall failed!)"'
     [FORCE_VALUE]='${FORCE}'
-    [DEFAULT_CHOICE]='false'
+    [DEFAULT_CHOICE]='${AUTO_REMOVE}'
     ); Ask_Auto_Action ASK_AUTO_SOURCE_;
     fi
 
@@ -795,7 +817,7 @@ SYSTEM)
     [SKIPPED_CMD]='Noforce_Alert "(skipped)"'
     [FAILED_CMD]='Noforce_Alert "(uninstall failed!)"'
     [FORCE_VALUE]='${FORCE}'
-    [DEFAULT_CHOICE]='false'
+    [DEFAULT_CHOICE]='${AUTO_REMOVE}'
     ); Ask_Auto_Action ASK_AUTO_SOURCE_;
     fi
 
@@ -818,13 +840,13 @@ SYSTEM)
 
     # AUR MISSING FROM SYSTEM
     # -------------------------------------------------------------------------
-    if [[ -n ${PACKAGES_MISS_SYST[*]:-} ]]; then
+    if [[ -n ${AUR_MISS_SYST[*]:-} ]]; then
     UI_Backup_Alert "\nREMOVE AUR PACKAGES THAT AREN'T CURRENTLY INSTALLED?\n${HR} \nThe following aur packages are not installed on your system but *are* 
     listed in your ${SCRIPTNAME} aur package list. Please choose whether to install each item to your system"
     Unset_Array ASK_AUTO_SOURCE_; ASK_AUTO_SOURCE_=(
     [LIST_VAR_NAME]='AUR_MISS_SYST'
     [QUERY_STRING]='\n${_item}\nInstall package?'
-    [ACTION_CMD]='Install_Package "${_item}"'
+    [ACTION_CMD]='Install_Package_From_AUR_Helper "${_item}"'
     [DEFAULT_CHOICE]='true'
     [EXECUTED_CMD]='Noforce_Alert "(installed)"; Add_To AUR_INST_SYST "${_item}"; Remove_From AUR_MISS_SYST "${_item}"; CHANGE_MADE=true;'
     [SKIPPED_CMD]='Noforce_Alert "(skipped)"'
@@ -926,10 +948,6 @@ done
 # GARBAGE COLLECTION (items in files directory but not in files list)
 
 case $MODE in
-
-REPORT)
-
-;;
 
 CONFIG)
  

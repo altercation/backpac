@@ -18,3 +18,14 @@ UI_Backup_Alert ()
         UI_Passive_Alert "$(echo ${*}):"
     fi
 }
+
+Install_Package_From_AUR_Helper () { sudo ${AUR_HELPER} -Sq --noconfirm "${1}"; }
+
+Remove_Item_From_File ()
+{
+    local _item_name="${1}"
+    local _filepath="${2}"
+    # yes, twice. there's probably a better sed pattern to deal with all cases
+    sed -i "/^[[:space:]]*#/!s/\<${_item_name}\>[^[:punct:]]//" "${_filepath}"
+    sed -i "/^[[:space:]]*#/!s/\<${_item_name}\>$//" "${_filepath}"
+}

@@ -58,7 +58,7 @@ Add_To ()
 # Handles string lists or arrays
 # Lists can be space or newline delimited, converted to newline delimited
 # 1: name of array or variable (not contents)
-# 2: value to add
+# 2: value to remove
 Remove_From ()
 {
     if Is_Array ${1}
@@ -420,12 +420,12 @@ do
             do
                 if Option_Is_Set "$(Unframe_Reframe "OPT_" "${_conditional}" "_")"
                 then
-                    eval "[[ -n \${$_option_array[PRERUN_${_conditional}]:-} ]] && echo \"\${$_option_array[PRERUN_${_conditional}]:-}\""
+                    eval "[[ -n \${$_option_array[PRERUN_${_conditional}]:-} ]] && echo \"\\\n\${$_option_array[PRERUN_${_conditional}]:-}\""
                     _prerun_displayed=true
                 fi
             done
         fi
-        Is_True $_prerun_displayed || eval "[[ -n \${$_option_array[PRERUN]:-} ]] && echo \"\${$_option_array[PRERUN]:-}\""
+        Is_True $_prerun_displayed || eval "[[ -n \${$_option_array[PRERUN]:-} ]] && echo \"\\\n\${$_option_array[PRERUN]:-}\""
     fi
 done
 }
@@ -589,9 +589,9 @@ Ask_Auto_Action ()
 # ); Ask_Auto_Action ASK_AUTO_SET_NAME_
 
 local _list_var_name="${ASK_AUTO_SOURCE_[LIST_VAR_NAME]:-}"
-local _default_choice="${ASK_AUTO_SOURCE_[DEFAULT_CHOICE]}"
 local _item= _executed_list= _failed_list= _skipped_list=
 eval local _force=\"${ASK_AUTO_SOURCE_[FORCE_VALUE]:-false}\"
+eval local _default_choice=\"${ASK_AUTO_SOURCE_[DEFAULT_CHOICE]:-false}\"
 if [[ -n ${_list_var_name:-} ]]
 then
     if Is_Array $_list_var_name
@@ -602,15 +602,18 @@ else
     eval local _list=\$\(echo \${$_source_set[LIST_VALUE]} \| Normalize_To_List\)
 fi
 Is_True ${_force} && _choice=${_default_choice} || _choice=
+Debug "+++++++++++ FORCE IS ${_force}"
+Debug "+++++++++++ DEFAULT CHOICE IS STARTING AT ${_default_choice}"
+Debug "+++++++++++ CHOICE IS STARTING AT ${_choice}"
 for _item in $_list
 do
     _hash=$(Hash_Of "$_item") # only used for overlay, but easier to do it once here
+    _action_command     () { eval ${ASK_AUTO_SOURCE_[ACTION_CMD]:-:};    }
+    _executed_command   () { eval ${ASK_AUTO_SOURCE_[EXECUTED_CMD]:-:};  }
+    _skipped_command    () { eval ${ASK_AUTO_SOURCE_[SKIPPED_CMD]:-:};   }
+    _failed_command     () { eval ${ASK_AUTO_SOURCE_[FAILED_CMD]:-:};    }
     if ! Is_True ${_force}; then Query "${ASK_AUTO_SOURCE_[QUERY_STRING]}" _force && _choice=true || _choice=false; fi
     if Is_True ${_choice}; then
-        _action_command     () { eval ${ASK_AUTO_SOURCE_[ACTION_CMD]:-:};    }
-        _executed_command   () { eval ${ASK_AUTO_SOURCE_[EXECUTED_CMD]:-:};  }
-        _skipped_command    () { eval ${ASK_AUTO_SOURCE_[SKIPPED_CMD]:-:};   }
-        _failed_command     () { eval ${ASK_AUTO_SOURCE_[FAILED_CMD]:-:};    }
         if _action_command
         then _executed_list+="${_item} ";   _executed_command
         else _failed_list+="${_item} ";     _failed_command
