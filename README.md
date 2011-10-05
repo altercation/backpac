@@ -254,12 +254,12 @@ scripts or cron.
 AUTOMATED Examples
 ------------------
 
-Both of these are the "extreme" cases of fully automated backpac config update 
-and system state updates.
-
 ### No-changes, just a query report
 
     backpac -Qf
+
+Both of the following are the "extreme" cases of fully automated backpac config 
+update and system state updates.
 
 ### Full backpac snapshot of the system
 
