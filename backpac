@@ -391,18 +391,17 @@ do
     local _missing="$(Set_Op_Difference "${GROUP_PACKAGES_REPO_[$_group]}" "${GROUP_PACKAGES_SYST_[$_group]}")"
     if [[ -n ${_missing:-} ]]
     then
-        #GROUP_PACKAGES_MISSING_IN_GROUP_[${_group}]="${_missing%% *}"
         GROUP_PACKAGES_MISS_SYST_[${_group}]="${_missing%% *}"
         GROUP_PACKAGES_MISS_SYST+="(${_group}: ${_missing%% *})\n"
     fi
     local _removed="$(Set_Op_Difference "${GROUP_PACKAGES_SYST_[${_group}]}" "${GROUP_PACKAGES_REPO_[${_group}]}")"
     if [[ -n ${_removed:-} ]]
     then
-        #GROUP_PACKAGES_REMOVED_FROM_GROUP_[${_group}]="${_removed%% *}"
         GROUP_PACKAGES_MISS_REPO_[${_group}]="${_removed%% *}"
-        GROUP_PACKAGES_MISS_REPO+="(${_group}: ${_removed%% *})\n"
+        GROUP_PACKAGES_MISS_REPO+="(${_group}: ${_removed%% *})"
     fi
 done
+fi # end of group currency check test
 
 #local _runagain_alert="Run again in system update mode (non 
 #-${OPT_FORCE_[FLAG]} forced mode) to be presented a prompt for installation of 
@@ -464,7 +463,6 @@ done
 #    fi; fi; done
 #fi # end of test for any removed group packages
 
-fi # end of group currency check test
 
 CHANGE_MADE=false
 case $MODE in
@@ -579,18 +577,69 @@ SYSTEM)
     ); Ask_Auto_Action ASK_AUTO_SOURCE_;
     fi
 
-    # regen packages list in case of changes to group packages
-    if Is_True ${CHANGE_MADE}
-    then
-        local _group
-        for _group in ${GROUPS_SYST}
-        do
-            GROUP_PACKAGES_SYST_[${_group}]="$(pacman -Qgq $_group)"
-            GROUP_PACKAGES_REPO_[${_group}]="$(pacman -Sgq $_group)"
-        done
+    if Is_True ${GROUP_CURRENCY_CHECK}; then
+        if [[ -n "${GROUP_PACKAGES_MISS_SYST_[*]:-}" ]]
+        then # there are some missing packages
+            #local _group
+            declare -g a_group
+            for a_group in ${!GROUP_PACKAGES_MISS_SYST_[*]}; do
+            if [[ -n "${GROUP_PACKAGES_MISS_SYST_[$a_group]}" ]]; then
+            UI_Passive_Alert "\nPACKAGES MISSING FROM GROUPS ${a_group}\nThe following packages are listed as group members in the 
+            repository but are not installed locally. Please choose whether to install each package to your system"
+            Unset_Array ASK_AUTO_SOURCE_; ASK_AUTO_SOURCE_=(
+            [LIST_VAR_NAME]="GROUP_PACKAGES_MISS_SYST_[${a_group}]"
+            [QUERY_STRING]='\n${_item}\nInstall group member package?'
+            [ACTION_CMD]='Install_Package "${_item}"'
+            [DEFAULT_CHOICE]='true'
+            [EXECUTED_CMD]='Noforce_Alert "(installed)"; Add_To GROUP_PACKAGES_INST_SYST ${_item}; Remove_From GROUP_PACKAGES_MISS_SYST_[$a_group] "${_item}"; CHANGE_MADE=true;'
+            [SKIPPED_CMD]='Noforce_Alert "(skipped)"'
+            [FAILED_CMD]='Noforce_Alert "(installed failed!)"'
+            [FORCE_VALUE]='${FORCE}'
+            ); Ask_Auto_Action ASK_AUTO_SOURCE_;
+            fi
+            done
+            unset a_group
+        fi
+        if [[ -n "${GROUP_PACKAGES_MISS_REPO_[*]:-}" ]]
+        then # there are some possibly removed packages
+            #local _group
+            declare -g a_group
+            for a_group in ${!GROUP_PACKAGES_MISS_REPO_[*]}; do
+            if [[ -n "${GROUP_PACKAGES_MISS_REPO_[$a_group]}" ]]; then
+            UI_Passive_Alert "\nGROUP PACKAGES REMOVED FROM REPO (group: ${a_group}):\nThe following installed packages are listed as group members locally but
+            are no longer listed as group members in the repository, indicating they may have been removed from the group. Please choose whether to 
+            uninstall each package from your system"
+            Unset_Array ASK_AUTO_SOURCE_; ASK_AUTO_SOURCE_=(
+            [LIST_VAR_NAME]="GROUP_PACKAGES_MISS_REPO_[${a_group}]"
+            [QUERY_STRING]='\n${_item}\nUninstall old group member package?'
+            [ACTION_CMD]='Uninstall_Package "${_item}"'
+            [DEFAULT_CHOICE]='true'
+            [EXECUTED_CMD]='Noforce_Alert "(uninstalled)"; Add_To GROUP_PACKAGES_REMO_SYST ${_item}; Remove_From GROUP_PACKAGES_MISS_REPO_[$a_group] "${_item}"; CHANGE_MADE=true;'
+            [SKIPPED_CMD]='Noforce_Alert "(skipped)"'
+            [FAILED_CMD]='Noforce_Alert "(uninstalled failed!)"'
+            [FORCE_VALUE]='${FORCE}'
+            ); Ask_Auto_Action ASK_AUTO_SOURCE_;
+            fi
+            done
+            unset a_group
+        fi
     fi
+
 ;;
 esac
+
+# TODO: move this to the system section and add back the package install 
+# section
+# regen packages list in case of changes to group packages
+if Is_True ${CHANGE_MADE}
+then
+    local _group
+    for _group in ${GROUPS_SYST}
+    do
+        GROUP_PACKAGES_SYST_[${_group}]="$(pacman -Qgq $_group)"
+        GROUP_PACKAGES_REPO_[${_group}]="$(pacman -Sgq $_group)"
+    done
+fi
 
 Progress_Report GROUPS_GOOD "GROUPS UP TO DATE: group listed in ${SCRIPTNAME} and >80% local install"
 Progress_Report GROUPS_MISS_CONF "GROUPS NOT IN ${SCRIPTNAME}: installed groups not listed in ${SCRIPTNAME} config"
