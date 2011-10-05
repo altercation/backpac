@@ -197,3 +197,39 @@ prior to any 'write' operation.
 
 Using the `-F` option will additionally skip the initial prompt, useful for
 scripts or cron.
+
+AUTOMATED Examples
+------------------
+
+Both of these are the "extreme" cases of fully automated backpac config update 
+and system state updates.
+
+### TAKE NO PRISONERS:
+
+    backpac -UFRb
+
+A full snapshot of system state to your default backpac config directory. This 
+will create a "perfect" snapshot including removing the names of packages that 
+aren't installed currently (but which were previously listed in your backpac 
+config). Files will also be updated from the system state (no backups made of 
+current snapshot files due to the -b flag, but in this case I am going to 
+commit to a git repository so I don't want them). Option details:
+
+    -U  Update backpac config
+    -F  Skip initial prompt and take default action for all changes
+    -R  Sets removes (package names in this case) to default to YES
+    -b  No backups (we'll use git instead)
+
+
+### WE ARE SPARTA
+
+    backpac -SFRb
+
+A full restore of your backpac state to the live system. This includes the 
+*uninstallation* of packages that aren't listed in the backpac lists. It also 
+overwrites system files with the backpac versions *with no backup*.
+
+    -S  System state update from backpac
+    -F  Skip initial prompt and take default action for all changes
+    -R  Sets removes (uninstalls in this case) to default to YES
+    -b  No backups (danger! don't use this if you want to backup current files)
