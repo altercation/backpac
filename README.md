@@ -123,6 +123,42 @@ reused or rolled back.
 (run backpac without any command line arguments for information and path to the 
 default config directory).
 
+Here's a sample initial `files` list created by hand:
+
+    /etc/acpi/handler.sh
+    /boot/grub/menu.lst
+    /etc/rc.conf
+    /etc/rc.local
+
+And here's what happens after updating it with backpac (`backpac -U`). Backpac 
+first prompts you for a decision with each file (you could skip this with -f 
+for automatic updating). In future runs of backpac, files that exist already 
+will be backed up prior to the new file being written unless you use the -b (no 
+backups) option.
+
+    COPY MISSING FILES?
+    --------------------------------------------------------------------------------
+    The following files haven't been saved to your backpac config yet. Please
+    choose whether to copy each item to the config files directory (backups will
+    be made):
+
+    /etc/acpi/handler.sh
+    Copy file? (y/n==this) (Y/N==all) y
+    (copied; attributes set from system file)
+
+    /boot/grub/menu.lst
+    Copy file? (y/n==this) (Y/N==all) Y
+    (copied; attributes set from system file)
+    (copied; attributes set from system file)
+    (copied; attributes set from system file)
+
+The `files` contents now look like this:
+
+    /boot/grub/menu.lst 644 root root
+    /etc/acpi/handler.sh 755 root root
+    /etc/rc.conf 644 root root
+    /etc/rc.local 755 root root
+
 Usage
 -----
 
