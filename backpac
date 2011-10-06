@@ -1,6 +1,9 @@
 #!/bin/bash
 
-TestFunc () { :; }
+TestFunc ()
+{
+    :;
+}
 
 # ==============================================================================
 # SCRIPT EXECUTION SETTINGS
@@ -306,6 +309,13 @@ UNIT_Initialize ()
 {
 trap 'TRAP_Alert; UNIT_Report; UNIT_Clean_Up; exit' INT TERM EXIT
 TMPDIR="$(mktemp -d --tmpdir $SCRIPTNAME.XXX)"; CLEANUP+=('rm -rf $TMPDIR')
+
+# identify default user group for files
+# we know USER from $USER environment var
+touch "$TMPDIR/testfile"
+GROUP="$(stat -c '%G' ${TMPDIR}/testfile)"
+
+# make sure we have our aur helper installed
 Install_Package_From_AUR "$AUR_HELPER"
 
 # initialize options from OPT_ arrays
@@ -953,17 +963,6 @@ case $MODE in
 
 CONFIG)
  
-    File_Install () {
-        local _path_hash="${1}";
-        install -CD --backup=${BACKUP_MODE} -S${BACKUP_SUFFIX} "${FILE_[${_path_hash},PATH,SYST]}" "${FILE_[${_path_hash},PATH,CONF]}"
-    }
-
-    Update_Attribs () {
-        local _path_hash="${1}";
-        FILE_[${_path_hash},ATTR,CONF,PREV]=${FILE_[${_path_hash},ATTR,CONF]};
-        FILE_[${_path_hash},ATTR,CONF]=${FILE_[${_path_hash},ATTR,SYST]}
-    }
-
     CHANGE_MADE=false
 
     # MISSING FROM FILES DIRECTORY
@@ -979,15 +978,15 @@ CONFIG)
 
         [QUERY_STRING]='\n${_item}\nCopy file?'
 
-        [ACTION_CMD]='File_Install ${_hash}'
+        [ACTION_CMD]='File_Install_To_Config ${_hash}'
         [DEFAULT_CHOICE]='true'
 
         [EXECUTED_CMD]='if [[ -z ${FILE_[${_hash},ATTR,CONF]} ]] ; then
-            Update_Attribs "${_hash}";
+            Update_Attribs_In_Config "${_hash}";
             Add_To FILES_GOOD "${_item} (NEW COPY; ATTRIBUTES SET FROM SYSTEM)";
             Noforce_Alert "(${_item} copied; attributes set from system file)";
         elif [[ "${FILE_[${_hash},ATTR,CONF]}" == "${FILE_[${_hash},ATTR,SYST]}" ]]; then
-            Update_Attribs "${_hash}";
+            Update_Attribs_In_Config "${_hash}";
             Add_To FILES_GOOD "${_item} (NEW COPY; ATTRIBUTES MATCHED)";
             Noforce_Alert "(${_item} copied; attributes set from system file)";
         else
@@ -1011,14 +1010,14 @@ CONFIG)
         UI_Backup_Alert "\nUPDATE ATTRIBUTES?\n${HR}
         \nThe following files differ in attributes between the system and 
         ${SCRIPTNAME} (contents match). Please choose whether to update each 
-        item in your files directory"
+        item in your ${SCRIPTNAME} files directory"
 
         Unset_Array ASK_AUTO_SOURCE_; ASK_AUTO_SOURCE_=(
         [LIST_VAR_NAME]='FILES_DIFF_ATTR'
 
         [QUERY_STRING]='\n${_item}\n(CURRENT IN ${SCRIPTNAME}:${FILE_[${_hash},ATTR,CONF]:-MISSING}) (NEW FROM SYSTEM:${FILE_[${_hash},ATTR,SYST]})\nUpdate attributes?'
 
-        [ACTION_CMD]='Update_Attribs "${_hash}"'
+        [ACTION_CMD]='Update_Attribs_In_Config "${_hash}"'
         [DEFAULT_CHOICE]='true'
 
         [EXECUTED_CMD]='Noforce_Alert "(${_item} updated attributes)";
@@ -1048,7 +1047,7 @@ CONFIG)
 
         [QUERY_STRING]='\n${_item}\nUpdate file?'
 
-        [ACTION_CMD]='File_Install "${_hash}"'
+        [ACTION_CMD]='File_Install_To_Config "${_hash}"'
         [DEFAULT_CHOICE]='true'
 
         [EXECUTED_CMD]='Noforce_Alert "(${_item} updated)";
@@ -1078,7 +1077,7 @@ CONFIG)
 
         [QUERY_STRING]='\n${_item}\n(CURRENT IN ${SCRIPTNAME}:${FILE_[${_hash},ATTR,CONF]:-MISSING}) (NEW FROM SYSTEM:${FILE_[${_hash},ATTR,SYST]})\nUpdate file & attributes?'
 
-        [ACTION_CMD]='File_Install "${_hash}" && Update_Attribs "${_hash}"'
+        [ACTION_CMD]='File_Install_Config "${_hash}" && Update_Attribs_In_Config "${_hash}"'
         [DEFAULT_CHOICE]='true'
 
         [EXECUTED_CMD]='Noforce_Alert "(${_item} updated content & attributes)";
@@ -1117,28 +1116,6 @@ CONFIG)
 ;;
 SYSTEM)
 
-    Update_Attribs () {
-        local _path_hash="${1}";
-        local _target_path="${FILE_[${_path_hash},PATH,SYST]}"
-        local _attribs=(${FILE_[${_path_hash},ATTR,CONF]})
-        local _mode=${_attribs[0]}
-        local _owner=${_attribs[1]}
-        local _group=${_attribs[2]}
-        sudo chmod ${_mode} ${_target_path}
-        sudo chown ${_owner}:${_group} ${_target_path}
-    }
-
-    File_Install () {
-        local _path_hash="${1}";
-        local _source_path="${FILE_[${_path_hash},PATH,CONF]}"
-        local _target_path="${FILE_[${_path_hash},PATH,SYST]}"
-        local _attribs=(${FILE_[${_path_hash},ATTR,CONF]})
-        local _mode=${_attribs[0]:+-m}${_attribs[0]:-}
-        local _owner=${_attribs[1]:+-o}${_attribs[1]:-}
-        local _group=${_attribs[2]:+-g}${_attribs[2]:-}
-        sudo install -CD --backup=${BACKUP_MODE} -S${BACKUP_SUFFIX} ${_mode} ${_owner} ${_group} "${_source_path}" "${_target_path}"
-    }
-
     # MISSING FROM SYSTEM
     # -------------------------------------------------------------------------
     if [[ -n ${FILES_MISS_SYST[*]:-} ]]; then
@@ -1152,7 +1129,7 @@ SYSTEM)
 
         [QUERY_STRING]='\n${_item}\nInstall file?'
 
-        [ACTION_CMD]='File_Install "${_hash}"'
+        [ACTION_CMD]='File_Install_To_System "${_hash}"'
         [DEFAULT_CHOICE]='true'
 
         [EXECUTED_CMD]='Add_To FILES_GOOD "${_item} (NEW FILE INSTALLED TO SYSTEM)";
@@ -1179,7 +1156,7 @@ SYSTEM)
         [LIST_VAR_NAME]='FILES_DIFF_ATTR'
 
         [QUERY_STRING]='\n${_item}\n(CURRENT ON SYSTEM:${FILE_[${_hash},ATTR,SYST]}) (NEW FROM ${SCRIPTNAME}:${FILE_[${_hash},ATTR,CONF]:-MISSING}) \nUpdate attributes?'
-        [ACTION_CMD]='Update_Attribs "${_hash}"'
+        [ACTION_CMD]='Update_Attribs_In_System "${_hash}"'
         [DEFAULT_CHOICE]='true'
 
         [EXECUTED_CMD]='Noforce_Alert "(${_item} updated attributes)";
@@ -1201,15 +1178,15 @@ SYSTEM)
     if [[ -n ${FILES_DIFF_CONT[*]:-} ]]; then
         UI_Backup_Alert "\nUPDATE FILE?\n${HR}
         The following files differ in content between ${SCRIPTNAME} and the 
-        system (attributes match). Please choose whether to update each item in 
-        your ${SCRIPTNAME} files directory"
+        system (attributes match). Please choose whether to update each file's 
+        contents in your live system."
 
         Unset_Array ASK_AUTO_SOURCE_; ASK_AUTO_SOURCE_=(
         [LIST_VAR_NAME]='FILES_DIFF_CONT'
 
         [QUERY_STRING]='\n${_item}\nUpdate file?'
 
-        [ACTION_CMD]='File_Install "${_hash}"'
+        [ACTION_CMD]='File_Install_To_System "${_hash}"'
         [DEFAULT_CHOICE]='true'
 
         [EXECUTED_CMD]='Noforce_Alert "(${_item} updated)";
@@ -1231,15 +1208,15 @@ SYSTEM)
     if [[ -n ${FILES_DIFF_CONT_ATTR[*]:-} ]]; then
         UI_Backup_Alert "\nUPDATE FILE & ATTRIBUTES?\n${HR}
         \nThe following files differ in content AND attributes between the 
-        system and ${SCRIPTNAME}. Please choose whether to update each item in 
-        your ${SCRIPTNAME} directory"
+        system and ${SCRIPTNAME}. Please choose whether to update each file in 
+        your live system."
 
         Unset_Array ASK_AUTO_SOURCE_; ASK_AUTO_SOURCE_=(
         [LIST_VAR_NAME]='FILES_DIFF_CONT_ATTR'
 
         [QUERY_STRING]='\n${_item}\n(CURRENT IN ${SCRIPTNAME}:${FILE_[${_hash},ATTR,CONF]:-MISSING}) (NEW FROM SYSTEM:${FILE_[${_hash},ATTR,SYST]})\nUpdate file & attributes?'
 
-        [ACTION_CMD]='File_Install "${_hash}" && Update_Attribs "${_hash}"'
+        [ACTION_CMD]='File_Install_To_System "${_hash}" && Update_Attribs_In_System "${_hash}"'
         [DEFAULT_CHOICE]='true'
 
         [EXECUTED_CMD]='Noforce_Alert "(${_item} updated content & attributes)";

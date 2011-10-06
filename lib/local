@@ -48,3 +48,43 @@ Files_Differ_Sanitized ()
     $(diff -q "${_filepath_1_sanitized}" "${_filepath_2}" &>/dev/null) && return 1 || return 0
     rm "${_filepath_1_sanitized}"
 }
+
+File_Install_To_Config () {
+    local _path_hash="${1}";
+    install -CD --backup=${BACKUP_MODE} -S${BACKUP_SUFFIX} "${FILE_[${_path_hash},PATH,SYST]}" "${FILE_[${_path_hash},PATH,CONF]}"
+}
+
+Update_Attribs_In_Config () {
+    local _path_hash="${1}";
+    FILE_[${_path_hash},ATTR,CONF,PREV]=${FILE_[${_path_hash},ATTR,CONF]};
+    FILE_[${_path_hash},ATTR,CONF]=${FILE_[${_path_hash},ATTR,SYST]}
+}
+
+Update_Attribs_In_System () {
+    local _path_hash="${1}";
+    local _target_path="${FILE_[${_path_hash},PATH,SYST]}"
+    local _attribs=(${FILE_[${_path_hash},ATTR,CONF]})
+    local _mode=${_attribs[0]}
+    local _owner=${_attribs[1]}
+    local _group=${_attribs[2]}
+    sudo chmod ${_mode} ${_target_path}
+    sudo chown ${_owner}:${_group} ${_target_path}
+}
+
+File_Install_To_System () {
+    local _path_hash="${1}";
+    local _source_path="${FILE_[${_path_hash},PATH,CONF]}"
+    local _target_path="${FILE_[${_path_hash},PATH,SYST]}"
+    local _attribs=(${FILE_[${_path_hash},ATTR,CONF]})
+    local _mode=${_attribs[0]:+-m}${_attribs[0]:-}
+    local _owner=${_attribs[1]:+-o}${_attribs[1]:-}
+    local _group=${_attribs[2]:+-g}${_attribs[2]:-}
+    if [[ "${USER}" == "${_attribs[1]:-}" ]]
+    then
+        # user running the script owns the target file
+        install -CD --backup=${BACKUP_MODE} -S${BACKUP_SUFFIX} ${_mode} ${_owner} ${_group} "${_source_path}" "${_target_path}"
+    else
+        # user running the script does not own the file
+        sudo install -CD --backup=${BACKUP_MODE} -S${BACKUP_SUFFIX} ${_mode} ${_owner} ${_group} "${_source_path}" "${_target_path}"
+    fi
+}
