@@ -424,16 +424,15 @@ CONFIG) # Condition add all, conditional remove all
     # GROUPS MISSING FROM CONFIG
     # -------------------------------------------------------------------------
     if [[ -n ${GROUPS_MISS_CONF[*]:-} ]]; then
-    UI_Backup_Alert "\n
-    ADD GROUPS THAT ARE INSTALLED BUT NOT IN ${SCRIPTNAME} GROUPS LIST?\n${HR} \nThe following groups are installed to your system but are not 
-    listed in your ${SCRIPTNAME} groups list. Please choose whether to add each item to the ${SCRIPTNAME} groups list"
+    UI_Backup_Alert "\nADD GROUPS THAT ARE INSTALLED BUT NOT IN $(Upper_Case ${SCRIPTNAME}) GROUPS LIST?\n${HR} \nThe following groups are installed to 
+    your system but are not listed in your ${SCRIPTNAME} groups list. Please choose whether to add each item to the ${SCRIPTNAME} groups list"
     Unset_Array ASK_AUTO_SOURCE_; ASK_AUTO_SOURCE_=(
     [LIST_VAR_NAME]='GROUPS_MISS_CONF'
     [QUERY_STRING]='\n${_item}\nAdd group name to ${SCRIPTNAME} groups list?'
     [ACTION_CMD]='Add_To GROUPS_INST_CONF "${_item}"; Remove_From GROUPS_MISS_CONF "${_item}"; CHANGE_MADE=true;'
-    [EXECUTED_CMD]='Noforce_Alert "(added)"'
-    [SKIPPED_CMD]='Noforce_Alert "(skipped)"'
-    [FAILED_CMD]='Noforce_Alert "(add failed!)"'
+    [EXECUTED_CMD]='Noforce_Alert "(${_item} added)"'
+    [SKIPPED_CMD]='Noforce_Alert "(${_item} skipped)"'
+    [FAILED_CMD]='Noforce_Alert "(${_item} add failed!)"'
     [FORCE_VALUE]='${FORCE}'
     [DEFAULT_CHOICE]='true'
     ); Ask_Auto_Action ASK_AUTO_SOURCE_;
@@ -448,9 +447,9 @@ CONFIG) # Condition add all, conditional remove all
     [LIST_VAR_NAME]='GROUPS_MISS_SYST'
     [QUERY_STRING]='\n${_item}\nRemove group name from ${SCRIPTNAME} config?'
     [ACTION_CMD]='Add_To GROUPS_REMO_CONF "${_item}"; Remove_From GROUPS_MISS_SYST "${_item}"; CHANGE_MADE=true; '
-    [EXECUTED_CMD]='Noforce_Alert "(removed)";'
-    [SKIPPED_CMD]='Noforce_Alert "(skipped)"'
-    [FAILED_CMD]='Noforce_Alert "(remove failed!)"'
+    [EXECUTED_CMD]='Noforce_Alert "(${_item} removed)";'
+    [SKIPPED_CMD]='Noforce_Alert "(${_item} skipped)"'
+    [FAILED_CMD]='Noforce_Alert "(${_item} remove failed!)"'
     [FORCE_VALUE]='${FORCE}'
     [DEFAULT_CHOICE]='${AUTO_REMOVE}'
     ); Ask_Auto_Action ASK_AUTO_SOURCE_;
@@ -498,16 +497,14 @@ SYSTEM)
     # GROUPS MISSING FROM CONFIG
     # -------------------------------------------------------------------------
     if [[ -n ${GROUPS_MISS_CONF[*]:-} ]]; then
-    UI_Backup_Alert "\n
-    UNINSTALL GROUPS THAT ARE NOT IN ${SCRIPTNAME} FILES LIST?\n${HR} \nThe following groups are installed to your system but are not 
-    listed in your ${SCRIPTNAME} groups list. Please choose whether to uninstall each group from your system to match the ${SCRIPTNAME} list"
+    UI_Backup_Alert "\nUNINSTALL GROUPS THAT ARE NOT IN $(Upper_Case ${SCRIPTNAME}) FILES LIST?\n${HR} \nThe following groups are installed to your system but are not listed in your ${SCRIPTNAME} groups list. Please choose whether to uninstall each group from your system to match the ${SCRIPTNAME} list"
     Unset_Array ASK_AUTO_SOURCE_; ASK_AUTO_SOURCE_=(
     [LIST_VAR_NAME]='GROUPS_MISS_CONF'
     [QUERY_STRING]='\n${_item}\nUninstall group?'
     [ACTION_CMD]='Uninstall_Package "${_item}"'
-    [EXECUTED_CMD]='Noforce_Alert "(uninstalled)"; Add_To GROUPS_REMO_SYST "${_item}"; Remove_From GROUPS_MISS_CONF "${_item}"; CHANGE_MADE=true; '
-    [SKIPPED_CMD]='Noforce_Alert "(skipped)"'
-    [FAILED_CMD]='Noforce_Alert "(uninstall failed!)"'
+    [EXECUTED_CMD]='Noforce_Alert "(${_item} uninstalled)"; Add_To GROUPS_REMO_SYST "${_item}"; Remove_From GROUPS_MISS_CONF "${_item}"; CHANGE_MADE=true; '
+    [SKIPPED_CMD]='Noforce_Alert "(${_item} skipped)"'
+    [FAILED_CMD]='Noforce_Alert "(${_item} uninstall failed!)"'
     [FORCE_VALUE]='${FORCE}'
     [DEFAULT_CHOICE]='${AUTO_REMOVE}'
     ); Ask_Auto_Action ASK_AUTO_SOURCE_;
@@ -516,16 +513,15 @@ SYSTEM)
     # GROUPS MISSING FROM SYSTEM
     # -------------------------------------------------------------------------
     if [[ -n ${GROUPS_MISS_SYST[*]:-} ]]; then
-    UI_Backup_Alert "\nREMOVE GROUPS THAT AREN'T CURRENTLY INSTALLED?\n${HR} \nThe following groups are not installed on your system but *are* 
-    listed in your ${SCRIPTNAME} groups list. Please choose whether to install each group to your system"
+        UI_Backup_Alert "\nREMOVE GROUP NAMES IN $(Upper_Case ${SCRIPTNAME}) THAT AREN'T CURRENTLY INSTALLED?\n${HR} \nThe following groups are not installed on your system but *are* listed in your ${SCRIPTNAME} groups list. Please choose whether to install each group to your system"
     Unset_Array ASK_AUTO_SOURCE_; ASK_AUTO_SOURCE_=(
     [LIST_VAR_NAME]='GROUPS_MISS_SYST'
     [QUERY_STRING]='\n${_item}\nInstall group?'
     [ACTION_CMD]='Install_Package "${_item}"'
     [DEFAULT_CHOICE]='true'
-    [EXECUTED_CMD]='Noforce_Alert "(installed)"; Add_To GROUPS_INST_SYST "${_item}"; Remove_From GROUPS_MISS_SYST "${_item}"; CHANGE_MADE=true;'
-    [SKIPPED_CMD]='Noforce_Alert "(skipped)"'
-    [FAILED_CMD]='Noforce_Alert "(installed failed!)"'
+    [EXECUTED_CMD]='Noforce_Alert "(${_item} installed)"; Add_To GROUPS_INST_SYST "${_item}"; Remove_From GROUPS_MISS_SYST "${_item}"; CHANGE_MADE=true;'
+    [SKIPPED_CMD]='Noforce_Alert "(${_item} skipped)"'
+    [FAILED_CMD]='Noforce_Alert "(${_item} installed failed!)"'
     [FORCE_VALUE]='${FORCE}'
     ); Ask_Auto_Action ASK_AUTO_SOURCE_;
     fi
@@ -544,9 +540,9 @@ SYSTEM)
             [QUERY_STRING]='\n${_item}\nInstall group member package?'
             [ACTION_CMD]='Install_Package "${_item}"'
             [DEFAULT_CHOICE]='true'
-            [EXECUTED_CMD]='Noforce_Alert "(installed)"; Add_To GROUP_PACKAGES_INST_SYST ${_item}; Remove_From GROUP_PACKAGES_MISS_SYST_[$a_group] "${_item}"; CHANGE_MADE=true;'
-            [SKIPPED_CMD]='Noforce_Alert "(skipped)"'
-            [FAILED_CMD]='Noforce_Alert "(installed failed!)"'
+            [EXECUTED_CMD]='Noforce_Alert "(${_item} installed)"; Add_To GROUP_PACKAGES_INST_SYST ${_item}; Remove_From GROUP_PACKAGES_MISS_SYST_[$a_group] "${_item}"; CHANGE_MADE=true;'
+            [SKIPPED_CMD]='Noforce_Alert "(${_item} skipped)"'
+            [FAILED_CMD]='Noforce_Alert "(${_item} installed failed!)"'
             [FORCE_VALUE]='${FORCE}'
             ); Ask_Auto_Action ASK_AUTO_SOURCE_;
             fi
@@ -566,9 +562,9 @@ SYSTEM)
             [LIST_VAR_NAME]="GROUP_PACKAGES_MISS_REPO_[${a_group}]"
             [QUERY_STRING]='\n${_item}\nUninstall old group member package?'
             [ACTION_CMD]='Uninstall_Package "${_item}"'
-            [EXECUTED_CMD]='Noforce_Alert "(uninstalled)"; Add_To GROUP_PACKAGES_REMO_SYST ${_item}; Remove_From GROUP_PACKAGES_MISS_REPO_[$a_group] "${_item}"; CHANGE_MADE=true;'
-            [SKIPPED_CMD]='Noforce_Alert "(skipped)"'
-            [FAILED_CMD]='Noforce_Alert "(uninstalled failed!)"'
+            [EXECUTED_CMD]='Noforce_Alert "(${_item} uninstalled)"; Add_To GROUP_PACKAGES_REMO_SYST ${_item}; Remove_From GROUP_PACKAGES_MISS_REPO_[$a_group] "${_item}"; CHANGE_MADE=true;'
+            [SKIPPED_CMD]='Noforce_Alert "(${_item} skipped)"'
+            [FAILED_CMD]='Noforce_Alert "(${_item} uninstalled failed!)"'
             [FORCE_VALUE]='${FORCE}'
             [DEFAULT_CHOICE]='${AUTO_REMOVE}'
             ); Ask_Auto_Action ASK_AUTO_SOURCE_;
@@ -650,17 +646,17 @@ CONFIG)
     # PACKAGES MISSING FROM CONFIG
     # -------------------------------------------------------------------------
     if [[ -n ${PACKAGES_MISS_CONF[*]:-} ]]; then
-    UI_Backup_Alert "\n
-    ADD PACKAGES THAT ARE INSTALLED BUT NOT IN ${SCRIPTNAME} FILES LIST?\n${HR} \nThe following packages are installed to your system but are not 
-    listed in your ${SCRIPTNAME} package list. Please choose whether to add each item to the ${SCRIPTNAME} package list"
+    UI_Backup_Alert "\nADD PACKAGES THAT ARE INSTALLED BUT NOT IN $(Upper_Case ${SCRIPTNAME}) FILES LIST?\n${HR} \nThe following packages are installed to 
+    your system but are not listed in your ${SCRIPTNAME} package list. Please 
+    choose whether to add each item to the ${SCRIPTNAME} package list"
     Unset_Array ASK_AUTO_SOURCE_; ASK_AUTO_SOURCE_=(
     [LIST_VAR_NAME]='PACKAGES_MISS_CONF'
     [QUERY_STRING]='\n${_item}\nAdd package name to ${SCRIPTNAME} config?'
     [ACTION_CMD]='Add_To PACKAGES_INST_CONF "${_item}"; Remove_From PACKAGES_MISS_CONF "${_item}"; CHANGE_MADE=true;'
     [DEFAULT_CHOICE]='true'
-    [EXECUTED_CMD]='Noforce_Alert "(added)"'
-    [SKIPPED_CMD]='Noforce_Alert "(skipped)"'
-    [FAILED_CMD]='Noforce_Alert "(add failed!)"'
+    [EXECUTED_CMD]='Noforce_Alert "(${_item} added)"'
+    [SKIPPED_CMD]='Noforce_Alert "(${_item} skipped)"'
+    [FAILED_CMD]='Noforce_Alert "(${_item} add failed!)"'
     [FORCE_VALUE]='${FORCE}'
     ); Ask_Auto_Action ASK_AUTO_SOURCE_;
     fi
@@ -668,17 +664,17 @@ CONFIG)
     # AUR MISSING FROM CONFIG
     # -------------------------------------------------------------------------
     if [[ -n ${AUR_MISS_CONF[*]:-} ]]; then
-    UI_Backup_Alert "\n
-    ADD AUR PACKAGES THAT ARE INSTALLED BUT NOT IN ${SCRIPTNAME} FILES LIST?\n${HR} \nThe following aur packages are installed to your system but are not 
-    listed in your ${SCRIPTNAME} aur package list. Please choose whether to add each item to the ${SCRIPTNAME} package list"
+    UI_Backup_Alert "\nADD AUR PACKAGES THAT ARE INSTALLED BUT NOT IN $(Upper_Case ${SCRIPTNAME}) FILES LIST?\n${HR} \nThe following aur packages are 
+    installed to your system but are not listed in your ${SCRIPTNAME} aur package list.  Please choose whether to add each item to the ${SCRIPTNAME} 
+    package list"
     Unset_Array ASK_AUTO_SOURCE_; ASK_AUTO_SOURCE_=(
     [LIST_VAR_NAME]='AUR_MISS_CONF'
     [QUERY_STRING]='\n${_item}\nAdd aur package name to ${SCRIPTNAME} config?'
     [ACTION_CMD]='Add_To AUR_INST_CONF "${_item}"; Remove_From AUR_MISS_CONF "${_item}"; CHANGE_MADE=true; '
     [DEFAULT_CHOICE]='true'
-    [EXECUTED_CMD]='Noforce_Alert "(added)";'
-    [SKIPPED_CMD]='Noforce_Alert "(skipped)"'
-    [FAILED_CMD]='Noforce_Alert "(add failed!)"'
+    [EXECUTED_CMD]='Noforce_Alert "(${_item} added)";'
+    [SKIPPED_CMD]='Noforce_Alert "(${_item} skipped)"'
+    [FAILED_CMD]='Noforce_Alert "(${_item} add failed!)"'
     [FORCE_VALUE]='${FORCE}'
     ); Ask_Auto_Action ASK_AUTO_SOURCE_;
     fi
@@ -686,15 +682,14 @@ CONFIG)
     # PACKAGES MISSING FROM SYSTEM
     # -------------------------------------------------------------------------
     if [[ -n ${PACKAGES_MISS_SYST[*]:-} ]]; then
-    UI_Backup_Alert "\nREMOVE PACKAGES THAT AREN'T CURRENTLY INSTALLED?\n${HR} \nThe following packages are not installed on your system but *are* 
-    listed in your ${SCRIPTNAME} package list. Please choose whether to remove each item from the ${SCRIPTNAME} package list"
+    UI_Backup_Alert "\nREMOVE PACKAGES FROM $(Upper_Case ${SCRIPTNAME}) THAT AREN'T CURRENTLY INSTALLED?\n${HR} \nThe following packages are not installed on your system but *are* listed in your ${SCRIPTNAME} package list. Please choose whether to remove each item from the ${SCRIPTNAME} package list"
     Unset_Array ASK_AUTO_SOURCE_; ASK_AUTO_SOURCE_=(
     [LIST_VAR_NAME]='PACKAGES_MISS_SYST'
     [QUERY_STRING]='\n${_item}\nRemove package name from ${SCRIPTNAME} config?'
     [ACTION_CMD]='Add_To PACKAGES_REMO_CONF "${_item}"; Remove_From PACKAGES_MISS_SYST "${_item}"; CHANGE_MADE=true; '
-    [EXECUTED_CMD]='Noforce_Alert "(removed)";'
-    [SKIPPED_CMD]='Noforce_Alert "(skipped)"'
-    [FAILED_CMD]='Noforce_Alert "(remove failed!)"'
+    [EXECUTED_CMD]='Noforce_Alert "(${_item} removed)";'
+    [SKIPPED_CMD]='Noforce_Alert "(${_item} skipped)"'
+    [FAILED_CMD]='Noforce_Alert "(${_item} remove failed!)"'
     [FORCE_VALUE]='${FORCE}'
     [DEFAULT_CHOICE]='${AUTO_REMOVE}'
     ); Ask_Auto_Action ASK_AUTO_SOURCE_;
@@ -703,15 +698,14 @@ CONFIG)
     # AUR MISSING FROM SYSTEM
     # -------------------------------------------------------------------------
     if [[ -n ${AUR_MISS_SYST[*]:-} ]]; then
-    UI_Backup_Alert "\nREMOVE AUR PACKAGES THAT AREN'T CURRENTLY INSTALLED?\n${HR}\nThe following aur packages are not installed on your 
-    system but *are* listed in your ${SCRIPTNAME} aur package list. Please choose whether to remove each item from the ${SCRIPTNAME} package list"
+    UI_Backup_Alert "\nREMOVE AUR PACKAGES FROM $(Upper_Case ${SCRIPTNAME}) THAT AREN'T CURRENTLY INSTALLED?\n${HR}\nThe following aur packages are not installed on your system but *are* listed in your ${SCRIPTNAME} aur package list. Please choose whether to remove each item from the ${SCRIPTNAME} package list"
     Unset_Array ASK_AUTO_SOURCE_; ASK_AUTO_SOURCE_=(
     [LIST_VAR_NAME]='AUR_MISS_SYST'
     [QUERY_STRING]='\n${_item}\nRemove aur package name from ${SCRIPTNAME} config?'
     [ACTION_CMD]='Add_To AUR_REMO_CONF "${_item}"; Remove_From AUR_MISS_SYST "${_item}"; CHANGE_MADE=true; '
-    [EXECUTED_CMD]='Noforce_Alert "(removed)";'
-    [SKIPPED_CMD]='Noforce_Alert "(skipped)"'
-    [FAILED_CMD]='Noforce_Alert "(remove failed!)"'
+    [EXECUTED_CMD]='Noforce_Alert "(${_item} removed)";'
+    [SKIPPED_CMD]='Noforce_Alert "(${_item} skipped)"'
+    [FAILED_CMD]='Noforce_Alert "(${_item} remove failed!)"'
     [FORCE_VALUE]='${FORCE}'
     [DEFAULT_CHOICE]='${AUTO_REMOVE}'
     ); Ask_Auto_Action ASK_AUTO_SOURCE_;
@@ -776,16 +770,14 @@ SYSTEM)
     # PACKAGES MISSING FROM CONFIG
     # -------------------------------------------------------------------------
     if [[ -n ${PACKAGES_MISS_CONF[*]:-} ]]; then
-    UI_Backup_Alert "\n
-    UNINSTALL PACKAGES THAT ARE NOT IN ${SCRIPTNAME} FILES LIST?\n${HR} \nThe following packages are installed to your system but are not 
-    listed in your ${SCRIPTNAME} package list. Please choose whether to uninstall each item from your system to match the ${SCRIPTNAME} list"
+    UI_Backup_Alert "\nUNINSTALL PACKAGES THAT ARE NOT IN $(Upper_Case ${SCRIPTNAME}) FILES LIST?\n${HR} \nThe following packages are installed to your system but are not listed in your ${SCRIPTNAME} package list. Please choose whether to uninstall each item from your system to match the ${SCRIPTNAME} list"
     Unset_Array ASK_AUTO_SOURCE_; ASK_AUTO_SOURCE_=(
     [LIST_VAR_NAME]='PACKAGES_MISS_CONF'
     [QUERY_STRING]='\n${_item}\nUninstall package?'
     [ACTION_CMD]='Uninstall_Package "${_item}"'
-    [EXECUTED_CMD]='Noforce_Alert "(uninstalled)"; Add_To PACKAGES_REMO_SYST "${_item}"; Remove_From PACKAGES_MISS_CONF "${_item}"; CHANGE_MADE=true; '
-    [SKIPPED_CMD]='Noforce_Alert "(skipped)"'
-    [FAILED_CMD]='Noforce_Alert "(uninstall failed!)"'
+    [EXECUTED_CMD]='Noforce_Alert "(${_item} uninstalled)"; Add_To PACKAGES_REMO_SYST "${_item}"; Remove_From PACKAGES_MISS_CONF "${_item}"; CHANGE_MADE=true; '
+    [SKIPPED_CMD]='Noforce_Alert "(${_item} skipped)"'
+    [FAILED_CMD]='Noforce_Alert "(${_item} uninstall failed!)"'
     [FORCE_VALUE]='${FORCE}'
     [DEFAULT_CHOICE]='${AUTO_REMOVE}'
     ); Ask_Auto_Action ASK_AUTO_SOURCE_;
@@ -794,16 +786,14 @@ SYSTEM)
     # AUR MISSING FROM CONFIG
     # -------------------------------------------------------------------------
     if [[ -n ${AUR_MISS_CONF[*]:-} ]]; then
-    UI_Backup_Alert "\n
-    UNINSTALL AUR PACKAGES THAT ARE NOT IN ${SCRIPTNAME} FILES LIST?\n${HR} \nThe following aur packages are installed to your system but are not 
-    listed in your ${SCRIPTNAME} aur package list. Please choose whether to uninstall each item from your system to match the ${SCRIPTNAME} list"
+    UI_Backup_Alert "\nUNINSTALL AUR PACKAGES THAT ARE NOT IN $(Upper_Case ${SCRIPTNAME}) FILES LIST?\n${HR} \nThe following aur packages are installed to your system but are not listed in your ${SCRIPTNAME} aur package list. Please choose whether to uninstall each item from your system to match the ${SCRIPTNAME} list"
     Unset_Array ASK_AUTO_SOURCE_; ASK_AUTO_SOURCE_=(
     [LIST_VAR_NAME]='AUR_MISS_CONF'
     [QUERY_STRING]='\n${_item}\nUninstall aur package?'
     [ACTION_CMD]='Uninstall_Package "${_item}"'
-    [EXECUTED_CMD]='Noforce_Alert "(uninstalled)"; Add_To AUR_REMO_SYST "${_item}"; Remove_From AUR_MISS_CONF "${_item}"; CHANGE_MADE=true; '
-    [SKIPPED_CMD]='Noforce_Alert "(skipped)"'
-    [FAILED_CMD]='Noforce_Alert "(uninstall failed!)"'
+    [EXECUTED_CMD]='Noforce_Alert "(${_item} uninstalled)"; Add_To AUR_REMO_SYST "${_item}"; Remove_From AUR_MISS_CONF "${_item}"; CHANGE_MADE=true; '
+    [SKIPPED_CMD]='Noforce_Alert "(${_item} skipped)"'
+    [FAILED_CMD]='Noforce_Alert "(${_item} uninstall failed!)"'
     [FORCE_VALUE]='${FORCE}'
     [DEFAULT_CHOICE]='${AUTO_REMOVE}'
     ); Ask_Auto_Action ASK_AUTO_SOURCE_;
@@ -812,16 +802,16 @@ SYSTEM)
     # PACKAGES MISSING FROM SYSTEM
     # -------------------------------------------------------------------------
     if [[ -n ${PACKAGES_MISS_SYST[*]:-} ]]; then
-    UI_Backup_Alert "\nREMOVE PACKAGES THAT AREN'T CURRENTLY INSTALLED?\n${HR} \nThe following packages are not installed on your system but *are* 
+    UI_Backup_Alert "\nINSTALL MISSING PACKAGES LISTED IN $(Upper_Case ${SCRIPTNAME})?\n${HR} \nThe following packages are not installed on your system but *are* 
     listed in your ${SCRIPTNAME} package list. Please choose whether to install each item to your system"
     Unset_Array ASK_AUTO_SOURCE_; ASK_AUTO_SOURCE_=(
     [LIST_VAR_NAME]='PACKAGES_MISS_SYST'
     [QUERY_STRING]='\n${_item}\nInstall package?'
     [ACTION_CMD]='Install_Package "${_item}"'
     [DEFAULT_CHOICE]='true'
-    [EXECUTED_CMD]='Noforce_Alert "(installed)"; Add_To PACKAGES_INST_SYST "${_item}"; Remove_From PACKAGES_MISS_SYST "${_item}"; CHANGE_MADE=true;'
-    [SKIPPED_CMD]='Noforce_Alert "(skipped)"'
-    [FAILED_CMD]='Noforce_Alert "(installed failed!)"'
+    [EXECUTED_CMD]='Noforce_Alert "(${_item} installed)"; Add_To PACKAGES_INST_SYST "${_item}"; Remove_From PACKAGES_MISS_SYST "${_item}"; CHANGE_MADE=true;'
+    [SKIPPED_CMD]='Noforce_Alert "(${_item} skipped)"'
+    [FAILED_CMD]='Noforce_Alert "(${_item} installed failed!)"'
     [FORCE_VALUE]='${FORCE}'
     ); Ask_Auto_Action ASK_AUTO_SOURCE_;
     fi
@@ -829,16 +819,16 @@ SYSTEM)
     # AUR MISSING FROM SYSTEM
     # -------------------------------------------------------------------------
     if [[ -n ${AUR_MISS_SYST[*]:-} ]]; then
-    UI_Backup_Alert "\nREMOVE AUR PACKAGES THAT AREN'T CURRENTLY INSTALLED?\n${HR} \nThe following aur packages are not installed on your system but *are* 
-    listed in your ${SCRIPTNAME} aur package list. Please choose whether to install each item to your system"
+    UI_Backup_Alert "\nINSTALL MISSING AUR PACKAGES LISTED IN $(Upper_Case ${SCRIPTNAME})?\n${HR} \nThe following aur packages are not installed on your system but
+    *are* listed in your ${SCRIPTNAME} aur package list. Please choose whether to install each item to your system"
     Unset_Array ASK_AUTO_SOURCE_; ASK_AUTO_SOURCE_=(
     [LIST_VAR_NAME]='AUR_MISS_SYST'
     [QUERY_STRING]='\n${_item}\nInstall package?'
     [ACTION_CMD]='Install_Package_From_AUR_Helper "${_item}"'
     [DEFAULT_CHOICE]='true'
-    [EXECUTED_CMD]='Noforce_Alert "(installed)"; Add_To AUR_INST_SYST "${_item}"; Remove_From AUR_MISS_SYST "${_item}"; CHANGE_MADE=true;'
-    [SKIPPED_CMD]='Noforce_Alert "(skipped)"'
-    [FAILED_CMD]='Noforce_Alert "(installed failed!)"'
+    [EXECUTED_CMD]='Noforce_Alert "(${_item} installed)"; Add_To AUR_INST_SYST "${_item}"; Remove_From AUR_MISS_SYST "${_item}"; CHANGE_MADE=true;'
+    [SKIPPED_CMD]='Noforce_Alert "(${_item} skipped)"'
+    [FAILED_CMD]='Noforce_Alert "(${_item} installed failed!)"'
     [FORCE_VALUE]='${FORCE}'
     ); Ask_Auto_Action ASK_AUTO_SOURCE_;
     fi
@@ -971,20 +961,20 @@ CONFIG)
         [EXECUTED_CMD]='if [[ -z ${FILE_[${_hash},ATTR,CONF]} ]] ; then
             Update_Attribs "${_hash}";
             Add_To FILES_GOOD "${_item} (NEW COPY; ATTRIBUTES SET FROM SYSTEM)";
-            Noforce_Alert "(copied; attributes set from system file)";
+            Noforce_Alert "(${_item} copied; attributes set from system file)";
         elif [[ "${FILE_[${_hash},ATTR,CONF]}" == "${FILE_[${_hash},ATTR,SYST]}" ]]; then
             Update_Attribs "${_hash}";
             Add_To FILES_GOOD "${_item} (NEW COPY; ATTRIBUTES MATCHED)";
-            Noforce_Alert "(copied; attributes set from system file)";
+            Noforce_Alert "(${_item} copied; attributes set from system file)";
         else
             Add_To FILES_DIFF_ATTR "${_item}";
-            Noforce_Alert "(copied; attributes differ, will prompt for resolution in a moment)";
+            Noforce_Alert "(${_item} copied; attributes differ, will prompt for resolution in a moment)";
             FILE_[${_hash},NEWCOPY_REPORT]="NEW COPY; ";
         fi;
         Remove_From FILES_MISS_CONF "${_item}";
         CHANGE_MADE=true;'
-        [SKIPPED_CMD]='Noforce_Alert "(skipped)"; Swap_In FILES_MISS_CONF "${_item}" "${_item} (NEW COPY SKIPPED)"'
-        [FAILED_CMD]='Noforce_Alert "(copy failed!)"; Swap_In FILES_MISS_CONF "${_item}" "${_item} (NEW COPY FAILED)"'
+        [SKIPPED_CMD]='Noforce_Alert "(${_item} skipped)"; Swap_In FILES_MISS_CONF "${_item}" "${_item} (NEW COPY SKIPPED)"'
+        [FAILED_CMD]='Noforce_Alert "(${_item} copy failed!)"; Swap_In FILES_MISS_CONF "${_item}" "${_item} (NEW COPY FAILED)"'
 
         [FORCE_VALUE]='${FORCE}'
 
@@ -1007,13 +997,13 @@ CONFIG)
         [ACTION_CMD]='Update_Attribs "${_hash}"'
         [DEFAULT_CHOICE]='true'
 
-        [EXECUTED_CMD]='Noforce_Alert "(updated attributes)";
+        [EXECUTED_CMD]='Noforce_Alert "(${_item} updated attributes)";
         Add_To FILES_GOOD "${_item} (${FILE_[${_hash},NEWCOPY_REPORT]:-}UPDATED ATTRIBUTES)";
         Remove_From FILES_DIFF_ATTR "${_item}";
         CHANGE_MADE=true;'
-        [SKIPPED_CMD]=' Noforce_Alert "(skipped)";
+        [SKIPPED_CMD]=' Noforce_Alert "(${_item} skipped)";
         Swap_In FILES_DIFF_ATTR "${_item}" "${_item} (UPDATE ATTRIBUTES SKIPPED)"'
-        [FAILED_CMD]='  Noforce_Alert "(update attributes failed!)";
+        [FAILED_CMD]='  Noforce_Alert "(${_item} update attributes failed!)";
         Swap_In FILES_DIFF_ATTR "${_item}" "${_item} (UPDATE ATTRIBUTES FAILED!)"'
 
         [FORCE_VALUE]='${FORCE}'
@@ -1037,13 +1027,13 @@ CONFIG)
         [ACTION_CMD]='File_Install "${_hash}"'
         [DEFAULT_CHOICE]='true'
 
-        [EXECUTED_CMD]='Noforce_Alert "(updated)";
+        [EXECUTED_CMD]='Noforce_Alert "(${_item} updated)";
         Add_To FILES_GOOD "${_item} (UPDATED CONTENT)";
         Remove_From FILES_DIFF_CONT "${_item}";
         CHANGE_MADE=true;'
-        [SKIPPED_CMD]=' Noforce_Alert "(skipped)";
+        [SKIPPED_CMD]=' Noforce_Alert "(${_item} skipped)";
         Swap_In FILES_DIFF_CONT "${_item}" "${_item} (UPDATE CONTENT SKIPPED)"'
-        [FAILED_CMD]='  Noforce_Alert "(update failed!)";
+        [FAILED_CMD]='  Noforce_Alert "(${_item} update failed!)";
         Swap_In FILES_DIFF_CONT "${_item}" "${_item} (UPDATE CONTENT FAILED!)"'
 
         [FORCE_VALUE]='${FORCE}'
@@ -1067,13 +1057,13 @@ CONFIG)
         [ACTION_CMD]='File_Install "${_hash}" && Update_Attribs "${_hash}"'
         [DEFAULT_CHOICE]='true'
 
-        [EXECUTED_CMD]='Noforce_Alert "(updated content & attributes)";
+        [EXECUTED_CMD]='Noforce_Alert "(${_item} updated content & attributes)";
         Add_To FILES_GOOD "${_item} (UPDATED CONTENT & ATTRIBUTES)";
         Remove_From FILES_DIFF_CONT_ATTR "${_item}";
         CHANGE_MADE=true;'
-        [SKIPPED_CMD]=' Noforce_Alert "(skipped)";
+        [SKIPPED_CMD]=' Noforce_Alert "(${_item} skipped)";
         Swap_In FILES_DIFF_CONT_ATTR "${_item}" "${_item} (UPDATE CONTENT & ATTRIBUTES SKIPPED)"'
-        [FAILED_CMD]='  Noforce_Alert "(update content & attributes failed!)";
+        [FAILED_CMD]='  Noforce_Alert "(${_item} update content & attributes failed!)";
         Swap_In FILES_DIFF_CONT_ATTR "${_item}" "${_item} (UPDATE CONTENT & ATTRIBUTES FAILED!)"'
 
         [FORCE_VALUE]='${FORCE}'
@@ -1142,10 +1132,11 @@ SYSTEM)
         [DEFAULT_CHOICE]='true'
 
         [EXECUTED_CMD]='Add_To FILES_GOOD "${_item} (NEW FILE INSTALLED TO SYSTEM)";
+        Noforce_Alert "(${_item} copied)";
         Remove_From FILES_MISS_SYST "${_item}";
         CHANGE_MADE=true;'
-        [SKIPPED_CMD]='Noforce_Alert "(skipped)"; Swap_In FILES_MISS_SYST "${_item}" "${_item} (INSTALL SYSTEM FILE SKIPPED)"'
-        [FAILED_CMD]='Noforce_Alert "(copy failed!)"; Swap_In FILES_MISS_SYST "${_item}" "${_item} (INSTALL SYSTEM FILE FAILED)"'
+        [SKIPPED_CMD]='Noforce_Alert "(${_item} skipped)"; Swap_In FILES_MISS_SYST "${_item}" "${_item} (INSTALL SYSTEM FILE SKIPPED)"'
+        [FAILED_CMD]='Noforce_Alert "(${_item} copy failed!)"; Swap_In FILES_MISS_SYST "${_item}" "${_item} (INSTALL SYSTEM FILE FAILED)"'
 
         [FORCE_VALUE]='${FORCE}'
 
@@ -1167,13 +1158,13 @@ SYSTEM)
         [ACTION_CMD]='Update_Attribs "${_hash}"'
         [DEFAULT_CHOICE]='true'
 
-        [EXECUTED_CMD]='Noforce_Alert "(updated attributes)";
+        [EXECUTED_CMD]='Noforce_Alert "(${_item} updated attributes)";
         Add_To FILES_GOOD "${_item} (${FILE_[${_hash},NEWCOPY_REPORT]:-}UPDATED SYSTEM FILE ATTRIBUTES)";
         Remove_From FILES_DIFF_ATTR "${_item}";
         CHANGE_MADE=true;'
-        [SKIPPED_CMD]=' Noforce_Alert "(skipped)";
+        [SKIPPED_CMD]=' Noforce_Alert "(${_item} skipped)";
         Swap_In FILES_DIFF_ATTR "${_item}" "${_item} (UPDATE SYSTEM FILE ATTRIBUTES SKIPPED)"'
-        [FAILED_CMD]='  Noforce_Alert "(update attributes failed!)";
+        [FAILED_CMD]='  Noforce_Alert "(${_item} update attributes failed!)";
         Swap_In FILES_DIFF_ATTR "${_item}" "${_item} (UPDATE SYSTEM FILE ATTRIBUTES FAILED!)"'
 
         [FORCE_VALUE]='${FORCE}'
@@ -1197,13 +1188,13 @@ SYSTEM)
         [ACTION_CMD]='File_Install "${_hash}"'
         [DEFAULT_CHOICE]='true'
 
-        [EXECUTED_CMD]='Noforce_Alert "(updated)";
+        [EXECUTED_CMD]='Noforce_Alert "(${_item} updated)";
         Add_To FILES_GOOD "${_item} (UPDATED SYSTEM FILE CONTENT)";
         Remove_From FILES_DIFF_CONT "${_item}";
         CHANGE_MADE=true;'
-        [SKIPPED_CMD]=' Noforce_Alert "(skipped)";
+        [SKIPPED_CMD]=' Noforce_Alert "(${_item} skipped)";
         Swap_In FILES_DIFF_CONT "${_item}" "${_item} (UPDATE SYSTEM FILE CONTENT SKIPPED)"'
-        [FAILED_CMD]='  Noforce_Alert "(update failed!)";
+        [FAILED_CMD]='  Noforce_Alert "(${_item} update failed!)";
         Swap_In FILES_DIFF_CONT "${_item}" "${_item} (UPDATE SYSTEM FILE CONTENT FAILED!)"'
 
         [FORCE_VALUE]='${FORCE}'
@@ -1227,13 +1218,13 @@ SYSTEM)
         [ACTION_CMD]='File_Install "${_hash}" && Update_Attribs "${_hash}"'
         [DEFAULT_CHOICE]='true'
 
-        [EXECUTED_CMD]='Noforce_Alert "(updated content & attributes)";
+        [EXECUTED_CMD]='Noforce_Alert "(${_item} updated content & attributes)";
         Add_To FILES_GOOD "${_item} (UPDATED SYSTEM FILE CONTENT & ATTRIBUTES)";
         Remove_From FILES_DIFF_CONT_ATTR "${_item}";
         CHANGE_MADE=true;'
-        [SKIPPED_CMD]=' Noforce_Alert "(skipped)";
+        [SKIPPED_CMD]=' Noforce_Alert "(${_item} skipped)";
         Swap_In FILES_DIFF_CONT_ATTR "${_item}" "${_item} (UPDATE SYSTEM FILE CONTENT & ATTRIBUTES SKIPPED)"'
-        [FAILED_CMD]='  Noforce_Alert "(update content & attributes failed!)";
+        [FAILED_CMD]='  Noforce_Alert "(${_item} update content & attributes failed!)";
         Swap_In FILES_DIFF_CONT_ATTR "${_item}" "${_item} (UPDATE SYSTEM FILE CONTENT & ATTRIBUTES FAILED!)"'
 
         [FORCE_VALUE]='${FORCE}'
