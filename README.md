@@ -300,11 +300,13 @@ Sample Output
 
     backpac
     ----------------------------------------------------------------------------
+    (-a)    Skip pAckages OFF; Groups and packages will be processed normally.
     (-b)    Backups ON; Files will be saved in place with backup suffix.
      -f     Force mode ON; No prompts presented (CAUTION).
     (-F)    Full Force mode OFF; Prompt displayed before script runs.
     (-g)    Suppress group check OFF; Groups will be checked for currency.
     (-h)    Display option and usage summary.
+    (-i)    Skip fIles OFF; Files will be processed normally.
     (-p)    Default backpac: /home/es/.config/backpac/tau.
      -Q     Simple Query ON; Report shown; no changes made to system.
     (-R)    Auto-Remove OFF; Remove/Uninstall action default to NO.
