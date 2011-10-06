@@ -148,6 +148,22 @@ OPT_CONFIG_UPDATE_=(
 * Save a snapshot of files listed in the ${SCRIPTNAME} files list to:\n  ${FILES_DIRPATH}. $(If_Opt_Display AUTO_REMOVE "\n* Remove non-installed group names from ${SCRIPTNAME} groups list. (-${OPT_AUTO_REMOVE_[FLAG]})\n* Remove non-installed package names from ${SCRIPTNAME} packages list. (-${OPT_AUTO_REMOVE_[FLAG]})") $(If_No_Opt_Display AUTO_REMOVE "\n* Non-installed groups/packages will not be removed from ${SCRIPTNAME} lists\n  (use the -${OPT_AUTO_REMOVE_[FLAG]} option to enable automatic removal)")'
 [PRERUN_FULL_FORCE]=''
 )
+OPT_SKIP_PACKAGES_=(
+[FLAG]='a'
+[STATE]='false'
+[STATE_SET]='true'
+[ALERT]='Skip pAckages OFF; Groups and packages will be processed normally.'
+[ALERT_SET]='Skip pAckages ON; Groups and packages will not be processed.'
+[USAGE]='Skip pAckages; Groups and packages will not be processed.'
+)
+OPT_SKIP_FILES_=(
+[FLAG]='i'
+[STATE]='false'
+[STATE_SET]='true'
+[ALERT]='Skip fIles OFF; Files will be processed normally.'
+[ALERT_SET]='Skip fIles ON; Files will not be processed.'
+[USAGE]='Skip fIles; Files will not be processed.'
+)
 OPT_FORCE_=(
 [FLAG]='f'
 [STATE]='false'
@@ -353,6 +369,8 @@ UI_Passive_Alert "$_message"
 
 UNIT_Groups ()
 {
+
+Is_True ${SKIP_PACKAGES} && return || true
 
 Unit_Report "${GROUPS_FILEPATH}"
 
@@ -611,6 +629,8 @@ Progress_Report GROUP_PACKAGES_MISS_REPO "GROUP PACKAGES; REMOVED?: installed pa
 UNIT_Packages ()
 {
 
+Is_True ${SKIP_PACKAGES} && return || true
+
 Unit_Report "${PACKAGES_FILEPATH}"
 
 # TODO: deal with timeline of updating the group packages
@@ -864,6 +884,8 @@ Progress_Report AUR_REMO_CONF "AUR REMOVED FROM ${SCRIPTNAME}: matches aur packa
 
 UNIT_Files ()
 {
+
+Is_True ${SKIP_FILES} && return || true
 
 # TODO: add garbage collection. when files present in files directory but not in 
 # files list, there should be a prompt to remove
