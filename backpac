@@ -1,13 +1,8 @@
 #!/bin/bash
 
-TestFunc ()
-{
-    :;
-}
-
-# ==============================================================================
+# =============================================================================
 # SCRIPT EXECUTION SETTINGS
-# ==============================================================================
+# =============================================================================
 
 SCRIPTNAME="$(basename $0)"
 DEBUG=${DEBUG:-}
@@ -15,9 +10,9 @@ set -o nounset # -u : disallow unset variable use
 set -o errexit # -e : exit on any trivial error
 [[ -z $DEBUG ]] || set -o verbose # -v : talkative bash DEBUG
 
-# ==============================================================================
+# =============================================================================
 # REQUIRES
-# ==============================================================================
+# =============================================================================
 # requires:
 if [[ ! ${BASH_VERSION:0:1} -ge 4 ]]
 then
@@ -34,11 +29,12 @@ do
 done
 # packer (can install automatically)
 
-# ==============================================================================
+# =============================================================================
 # SCRIPT DEFAULTS
-# ==============================================================================
+# =============================================================================
 
-#CMDLINE_OPTIONS="${@}" # global so we can use in functions easily
+# set CMDLINE_OPTIONS here for use in functions
+# strip long --options and conver them to -o short options
 CMDLINE_OPTIONS="$(echo "${@}" | sed 's/--\([[:alpha:]]\)\w*/-\1/g')"
 # global so we can use in functions easily
 BACKUP_SUFFIX=".${SCRIPTNAME}-old" # cf man install
@@ -49,16 +45,18 @@ FILES_FILENAME="files"
 FILES_DIRNAME="${FILES_FILENAME}.d"
 POST_FILENAME="post"
 
-# ==============================================================================
-# LIBS LOCATION
-# ==============================================================================
+# =============================================================================
+# LIBS
+# =============================================================================
+# used in dynamic associative arrays scan and lib sourcing
 LIBS_DIRPATH="/usr/share/${SCRIPTNAME}/lib"
 [[ -d "${LIBS_DIRPATH}" ]] || LIBS_DIRPATH="$(dirname $0)/lib"
 [[ -d "${LIBS_DIRPATH}" ]] || (echo "Failed to find script libs!" && exit 1)
+for filename in $LIBS_DIRPATH/* ; do source $filename; done; unset filename
 
-# ==============================================================================
+# =============================================================================
 # DYNAMIC ASSOCIATIVE ARRAYS
-# ==============================================================================
+# =============================================================================
 # This allows associative arrays to be used like normal bash variables without 
 # explicitly declaring them if the are suffixed by an underscore:
 # I_AM_AN_ASSOCIATIVE_ARRAY_[INDEED]
@@ -81,21 +79,9 @@ for assoc_array in $(egrep '^[^#]*_(\[.*\])?[+=]' $filename \
     done;
 done; unset filename
 
-# ==============================================================================
-# LIBS
-# ==============================================================================
-
-for filename in $LIBS_DIRPATH/* ; do source $filename; done; unset filename
-
-# ==============================================================================
-# TEST FUNCTION
-# ==============================================================================
-
-TestFunc
-
-# ==============================================================================
+# =============================================================================
 # USER DEFAULTS
-# ==============================================================================
+# =============================================================================
 # Don't change these here. Set in your shell's environment variables.
 
 # Config directory. Override this in your environment with ${SCRIPTNAME}_DIR
@@ -107,9 +93,9 @@ eval CONFIG_DIRPATH_DEFAULT="\${!$CONFIG_DIRPATH_ENVVARNAME:-\$FALLBACK}"
 # must support basic pacman command line options (-S, -Q, etc.)
 AUR_HELPER=${AUR_HELPER:-packer}
 
-# ==============================================================================
+# =============================================================================
 # COMMAND LINE OPTIONS, RUNTIME OPTION REPORT VALUES & HELP
-# ==============================================================================
+# =============================================================================
 
 OPT_SYSTEM_UPDATE_=(
 [FLAG]='S'
@@ -295,15 +281,15 @@ $(Upper_Case ${SCRIPTNAME}) DEFAULT CONFIG LOCATION:\n${HR}\n${CONFIG_DIRPATH_DE
 "
 #See options summary above for other features or consult the ${SCRIPTNAME} man page using the command: man ${SCRIPTNAME}
 
-# ==============================================================================
+# =============================================================================
 # EXECUTION SEQUENCE
-# ==============================================================================
+# =============================================================================
 
 UNIT_SEQUENCE="Initialize Groups Packages Files Report Clean_Up"
 
-# ==============================================================================
+# =============================================================================
 # INITIALIZE
-# ==============================================================================
+# =============================================================================
 
 UNIT_Initialize ()
 {
@@ -341,8 +327,10 @@ fi
 # options summary and prerun alert
 local _option_summary="$(Options_Summary)"
 local _option_prerun="$(Options_Prerun)"
-[[ -z ${_option_summary:-} ]] || UI_Passive_Alert "\n$SCRIPTNAME\n${HR}\n${_option_summary}"
-[[ -z ${_option_prerun:-} ]] || Query "\n${_option_prerun}\n\nProceed?"
+[[ -z ${_option_summary:-} ]] \
+    || UI_Passive_Alert "\n$SCRIPTNAME\n${HR}\n${_option_summary}"
+[[ -z ${_option_prerun:-} ]] \
+    || Query "\n${_option_prerun}\n\nProceed?"
 
 # locate/make config directory if in update config mode, otherwise warn 
 # user and exit
@@ -351,14 +339,19 @@ then
     local _alert=
     if [[ "${CONFIG_DIRPATH}" == "${CONFIG_DIRPATH_DEFAULT}" ]]
     then
-    _alert+="No config directory found at default path ${CONFIG_DIRPATH}.  Please run ${SCRIPTNAME} again in config update mode (command line 
-    flag: -${OPT_CONFIG_UPDATE_[FLAG]%:}) to automatically create a ${SCRIPTNAME} config directory at this default location. Alternately,
-    locate an existing ${SCRIPTNAME} config directory (using the  -${OPT_CONFIG_DIRPATH_[FLAG]%:} <custompath> command line option)."
+    _alert+="No config directory found at default path ${CONFIG_DIRPATH}.  
+    Please run ${SCRIPTNAME} again in config update mode (command line flag: 
+    -${OPT_CONFIG_UPDATE_[FLAG]%:}) to automatically create a ${SCRIPTNAME} 
+    config directory at this default location. Alternately, locate an existing 
+    ${SCRIPTNAME} config directory (using the  -${OPT_CONFIG_DIRPATH_[FLAG]%:} 
+    <custompath> command line option)."
     else
-    _alert+="No config directory found at custom path ${CONFIG_DIRPATH}.  Please run ${SCRIPTNAME} again in config update mode (command line 
-    flag: -${OPT_CONFIG_UPDATE_[FLAG]%:}) to automatically create a ${SCRIPTNAME} config directory at this custom location.
-    Alternately, run again without the -${OPT_CONFIG_DIRPATH_[FLAG]%:} <custompath> option to attempt to use the default ${SCRIPTNAME} config 
-    directory (${CONFIG_DIRPATH_DEFAULT})."
+    _alert+="No config directory found at custom path ${CONFIG_DIRPATH}.  
+    Please run ${SCRIPTNAME} again in config update mode (command line flag: 
+    -${OPT_CONFIG_UPDATE_[FLAG]%:}) to automatically create a ${SCRIPTNAME} 
+    config directory at this custom location. Alternately, run again without 
+    the -${OPT_CONFIG_DIRPATH_[FLAG]%:} <custompath> option to attempt to use 
+    the default ${SCRIPTNAME} config directory (${CONFIG_DIRPATH_DEFAULT})."
     fi
     UI_Passive_Alert "\nMISSING CONFIG:\n$HR\n$(echo -e ${_alert})"
     exit 0
@@ -368,9 +361,9 @@ fi
 UI_Passive_Alert "\nConfig directory: ${CONFIG_DIRPATH}"
 }
 
-# ==============================================================================
+# =============================================================================
 # GROUPS
-# ==============================================================================
+# =============================================================================
 
 UNIT_Groups ()
 {
@@ -380,19 +373,21 @@ Is_True ${SKIP_PACKAGES} && return || true
 Unit_Report "${GROUPS_FILEPATH}"
 
 # DETECT GROUPS
-# ----------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 GROUPS_POTENTIAL=$(pacman -Qg | awk '{print $1}' | sort -u)
 UI_Incremental_Alert "\nInitializing..."
 local _group
 for _group in ${GROUPS_POTENTIAL}
 do
     # get percentage of group already installed
-    # sort -u required (via Normalize_To_List) as there can be duplicate package 
-    # reporting if testing repos are live, for instance
+    # sort -u required (via Normalize_To_List) as there can be duplicate 
+    # package reporting if testing repos are live, for instance
     GROUP_PACKAGES_SYST_[${_group}]="$(pacman -Qgq $_group)"
     GROUP_PACKAGES_REPO_[${_group}]="$(pacman -Sgq $_group)"
-    local _group_count_local=$(echo ${GROUP_PACKAGES_SYST_[${_group}]} | Normalize_To_List | wc -l)
-    local _group_count_repo=$(echo ${GROUP_PACKAGES_REPO_[${_group}]} | Normalize_To_List | wc -l)
+    local _group_count_local=$(echo ${GROUP_PACKAGES_SYST_[${_group}]} \
+    | Normalize_To_List | wc -l)
+    local _group_count_repo=$(echo ${GROUP_PACKAGES_REPO_[${_group}]} \
+    | Normalize_To_List | wc -l)
     local _threshold=12
     local _score=$(echo $((($_group_count_repo*10)/$_group_count_local)))
     if [[ $_score -le $_threshold ]]
@@ -402,10 +397,9 @@ do
     fi
 done
 UI_Passive_Alert "Done\n"
-#Progress_Report GROUPS_SYST "INSTALLED GROUPS (DETECTED>80% MEMBER PACKAGE INSTALL)"
 
 # READ GROUPS FILE
-# ----------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 GROUPS_CONF="$(Read_File_Drop_Comments ${GROUPS_FILEPATH} | Normalize_To_List)"
 GROUPS_GOOD="$(Set_Op_Intersection "${GROUPS_CONF}" "${GROUPS_SYST}")"
 GROUPS_MISS_SYST="$(Set_Op_Difference "${GROUPS_CONF}" "${GROUPS_SYST}")"
@@ -416,12 +410,13 @@ GROUPS_INST_SYST=
 GROUPS_REMO_SYST=
 
 # CHECK GROUP FOR NEW/REMOVED PACKAGES
-# ----------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 if Is_True ${GROUP_CURRENCY_CHECK}; then
 local _group
 for _group in ${GROUPS_SYST}
 do
-    local _missing="$(Set_Op_Difference "${GROUP_PACKAGES_REPO_[$_group]}" "${GROUP_PACKAGES_SYST_[$_group]}")"
+    local _missing="$(Set_Op_Difference "${GROUP_PACKAGES_REPO_[$_group]}" \
+        "${GROUP_PACKAGES_SYST_[$_group]}")"
     if [[ -n ${_missing:-} ]]
     then
         GROUP_PACKAGES_MISS_SYST_[${_group}]="${_missing%% *}"
@@ -429,7 +424,8 @@ do
         && GROUP_PACKAGES_MISS_SYST+="\n(${_group}: ${_missing%% *})" \
         || GROUP_PACKAGES_MISS_SYST+="(${_group}: ${_missing%% *})"
     fi
-    local _removed="$(Set_Op_Difference "${GROUP_PACKAGES_SYST_[${_group}]}" "${GROUP_PACKAGES_REPO_[${_group}]}")"
+    local _removed="$(Set_Op_Difference "${GROUP_PACKAGES_SYST_[${_group}]}" \
+        "${GROUP_PACKAGES_REPO_[${_group}]}")"
     if [[ -n ${_removed:-} ]]
     then
         GROUP_PACKAGES_MISS_REPO_[${_group}]="${_removed%% *}"
@@ -442,160 +438,166 @@ fi # end of group currency check test
 
 CHANGE_MADE=false
 case $MODE in
-CONFIG) # Condition add all, conditional remove all
+CONFIG) # =====================================================================
 
-    # GROUPS MISSING FROM CONFIG
-    # -------------------------------------------------------------------------
-    if [[ -n ${GROUPS_MISS_CONF[*]:-} ]]; then
-    UI_Backup_Alert "\nADD GROUPS THAT ARE INSTALLED BUT NOT IN $(Upper_Case ${SCRIPTNAME}) GROUPS LIST?\n${HR} \nThe following groups are installed to 
-    your system but are not listed in your ${SCRIPTNAME} groups list. Please choose whether to add each item to the ${SCRIPTNAME} groups list"
-    Unset_Array ASK_AUTO_SOURCE_; ASK_AUTO_SOURCE_=(
-    [LIST_VAR_NAME]='GROUPS_MISS_CONF'
-    [QUERY_STRING]='\n${_item}\nAdd group name to ${SCRIPTNAME} groups list?'
-    [ACTION_CMD]='Add_To GROUPS_INST_CONF "${_item}"; Remove_From GROUPS_MISS_CONF "${_item}"; CHANGE_MADE=true;'
-    [EXECUTED_CMD]='Noforce_Alert "(${_item} added)"'
-    [SKIPPED_CMD]='Noforce_Alert "(${_item} skipped)"'
-    [FAILED_CMD]='Noforce_Alert "(${_item} add failed!)"'
-    [FORCE_VALUE]='${FORCE}'
-    [DEFAULT_CHOICE]='true'
-    ); Ask_Auto_Action ASK_AUTO_SOURCE_;
-    fi
+# GROUPS MISSING FROM CONFIG
+# -----------------------------------------------------------------------------
+if [[ -n ${GROUPS_MISS_CONF[*]:-} ]]; then
+UI_Backup_Alert "\nADD GROUPS THAT ARE INSTALLED BUT NOT IN 
+$(Upper_Case ${SCRIPTNAME}) GROUPS LIST?\n${HR} \nThe following groups are 
+installed to your system but are not listed in your ${SCRIPTNAME} groups 
+list. Please choose whether to add each item to the ${SCRIPTNAME} groups 
+list"
+Unset_Array ASK_AUTO_SOURCE_; ASK_AUTO_SOURCE_=(
+[LIST_VAR_NAME]='GROUPS_MISS_CONF'
+[QUERY_STRING]='\n${_item}\nAdd group name to ${SCRIPTNAME} groups list?'
+[ACTION_CMD]='
+Add_To GROUPS_INST_CONF "${_item}"; 
+Remove_From GROUPS_MISS_CONF "${_item}"; 
+CHANGE_MADE=true;'
+[EXECUTED_CMD]='Noforce_Alert "(${_item} added)"'
+[SKIPPED_CMD]='Noforce_Alert "(${_item} skipped)"'
+[FAILED_CMD]='Noforce_Alert "(${_item} add failed!)"'
+[FORCE_VALUE]='${FORCE}'
+[DEFAULT_CHOICE]='true'
+); Ask_Auto_Action ASK_AUTO_SOURCE_;
+fi
 
-    # GROUPS MISSING FROM SYSTEM
-    # -------------------------------------------------------------------------
-    if [[ -n ${GROUPS_MISS_SYST[*]:-} ]]; then
-    UI_Backup_Alert "\nREMOVE GROUPS THAT AREN'T CURRENTLY INSTALLED?\n${HR} \nThe following groups are not installed on your system but *are* 
-    listed in your ${SCRIPTNAME} group list. Please choose whether to remove each item from the ${SCRIPTNAME} group list"
-    Unset_Array ASK_AUTO_SOURCE_; ASK_AUTO_SOURCE_=(
-    [LIST_VAR_NAME]='GROUPS_MISS_SYST'
-    [QUERY_STRING]='\n${_item}\nRemove group name from ${SCRIPTNAME} config?'
-    [ACTION_CMD]='Add_To GROUPS_REMO_CONF "${_item}"; Remove_From GROUPS_MISS_SYST "${_item}"; CHANGE_MADE=true; '
-    [EXECUTED_CMD]='Noforce_Alert "(${_item} removed)";'
-    [SKIPPED_CMD]='Noforce_Alert "(${_item} skipped)"'
-    [FAILED_CMD]='Noforce_Alert "(${_item} remove failed!)"'
-    [FORCE_VALUE]='${FORCE}'
-    [DEFAULT_CHOICE]='${AUTO_REMOVE}'
-    ); Ask_Auto_Action ASK_AUTO_SOURCE_;
-    fi
+# GROUPS MISSING FROM SYSTEM
+# -----------------------------------------------------------------------------
+if [[ -n ${GROUPS_MISS_SYST[*]:-} ]]; then
+UI_Backup_Alert "\nREMOVE GROUPS THAT AREN'T CURRENTLY INSTALLED?\n${HR} 
+\nThe following groups are not installed on your system but *are* listed in 
+your ${SCRIPTNAME} group list. Please choose whether to remove each item 
+from the ${SCRIPTNAME} group list"
+Unset_Array ASK_AUTO_SOURCE_; ASK_AUTO_SOURCE_=(
+[LIST_VAR_NAME]='GROUPS_MISS_SYST'
+[QUERY_STRING]='\n${_item}\nRemove group name from ${SCRIPTNAME} config?'
+[ACTION_CMD]='
+Add_To GROUPS_REMO_CONF "${_item}"; 
+Remove_From GROUPS_MISS_SYST "${_item}"; 
+CHANGE_MADE=true; '
+[EXECUTED_CMD]='Noforce_Alert "(${_item} removed)";'
+[SKIPPED_CMD]='Noforce_Alert "(${_item} skipped)"'
+[FAILED_CMD]='Noforce_Alert "(${_item} remove failed!)"'
+[FORCE_VALUE]='${FORCE}'
+[DEFAULT_CHOICE]='${AUTO_REMOVE}'
+); Ask_Auto_Action ASK_AUTO_SOURCE_;
+fi
 
-    # UPDATE GROUPS LIST
-    if [[ -n ${GROUPS_INST_CONF:-}${GROUPS_REMO_CONF:-} ]]
-    then
+# UPDATE GROUPS LIST
+# -----------------------------------------------------------------------------
+MODE_FINAL=$(Update_Groups_List_If_Changed)
 
-        # copy current config packages file if present
-        [[ -e "${GROUPS_FILEPATH}" ]] && cp "${GROUPS_FILEPATH}" "${TMPDIR}/${GROUPS_FILENAME}"
-
-        # add newly added packages to list
-        if [[ -n ${GROUPS_INST_CONF:-} ]]
-        then
-            echo -e "\n# GROUPS added by ${SCRIPTNAME} on $(date +%F)" >> "${TMPDIR}/${GROUPS_FILENAME}"
-            echo "# ${HR%--}" >> "${TMPDIR}/${GROUPS_FILENAME}"
-            echo ${GROUPS_INST_CONF} | fmt -w 80 >> "${TMPDIR}/${GROUPS_FILENAME}"
-        fi
-
-        # include a summary of removed packages
-        if [[ -n ${GROUPS_REMO_CONF:-} ]]
-        then
-            local _group_name
-            for _group_name in ${GROUPS_REMO_CONF}
-            do
-                Remove_Item_From_File "${_group_name}" "${TMPDIR}/${GROUPS_FILENAME}"
-            done
-            echo -e "\n# GROUPS REMOVED by ${SCRIPTNAME} on $(date +%F)" >> "${TMPDIR}/${GROUPS_FILENAME}"
-            echo "# ${HR%--}" >> "${TMPDIR}/${GROUPS_FILENAME}"
-            echo "# $(echo ${GROUPS_REMO_CONF})" >> "${TMPDIR}/${GROUPS_FILENAME}"
-        fi
-
-        # atomic write
-        install -CD --backup=${BACKUP_MODE} -S${BACKUP_SUFFIX} "${TMPDIR}/${GROUPS_FILENAME}" "${GROUPS_FILEPATH}" \
-        && MODE_FINAL="SUCCESSFULLY UPDATED GROUPS LIST" \
-        || MODE_FINAL="FAILED TO UPDATE GROUPS LIST!"
-
-    else
-        MODE_FINAL= #"NO CHANGES MADE; GROUPS LIST NOT UPDATED"
-    fi
 ;;
-SYSTEM)
 
-    # GROUPS MISSING FROM CONFIG
-    # -------------------------------------------------------------------------
-    if [[ -n ${GROUPS_MISS_CONF[*]:-} ]]; then
-    UI_Backup_Alert "\nUNINSTALL GROUPS THAT ARE NOT IN $(Upper_Case ${SCRIPTNAME}) FILES LIST?\n${HR} \nThe following groups are installed to your system but are not listed in your ${SCRIPTNAME} groups list. Please choose whether to uninstall each group from your system to match the ${SCRIPTNAME} list"
-    Unset_Array ASK_AUTO_SOURCE_; ASK_AUTO_SOURCE_=(
-    [LIST_VAR_NAME]='GROUPS_MISS_CONF'
-    [QUERY_STRING]='\n${_item}\nUninstall group?'
-    [ACTION_CMD]='Uninstall_Package "${_item}"'
-    [EXECUTED_CMD]='Noforce_Alert "(${_item} uninstalled)"; Add_To GROUPS_REMO_SYST "${_item}"; Remove_From GROUPS_MISS_CONF "${_item}"; CHANGE_MADE=true; '
-    [SKIPPED_CMD]='Noforce_Alert "(${_item} skipped)"'
-    [FAILED_CMD]='Noforce_Alert "(${_item} uninstall failed!)"'
-    [FORCE_VALUE]='${FORCE}'
-    [DEFAULT_CHOICE]='${AUTO_REMOVE}'
-    ); Ask_Auto_Action ASK_AUTO_SOURCE_;
-    fi
 
-    # GROUPS MISSING FROM SYSTEM
-    # -------------------------------------------------------------------------
-    if [[ -n ${GROUPS_MISS_SYST[*]:-} ]]; then
-        UI_Backup_Alert "\nREMOVE GROUP NAMES IN $(Upper_Case ${SCRIPTNAME}) THAT AREN'T CURRENTLY INSTALLED?\n${HR} \nThe following groups are not installed on your system but *are* listed in your ${SCRIPTNAME} groups list. Please choose whether to install each group to your system"
-    Unset_Array ASK_AUTO_SOURCE_; ASK_AUTO_SOURCE_=(
-    [LIST_VAR_NAME]='GROUPS_MISS_SYST'
-    [QUERY_STRING]='\n${_item}\nInstall group?'
-    [ACTION_CMD]='Install_Package "${_item}"'
-    [DEFAULT_CHOICE]='true'
-    [EXECUTED_CMD]='Noforce_Alert "(${_item} installed)"; Add_To GROUPS_INST_SYST "${_item}"; Remove_From GROUPS_MISS_SYST "${_item}"; CHANGE_MADE=true;'
-    [SKIPPED_CMD]='Noforce_Alert "(${_item} skipped)"'
-    [FAILED_CMD]='Noforce_Alert "(${_item} installed failed!)"'
-    [FORCE_VALUE]='${FORCE}'
-    ); Ask_Auto_Action ASK_AUTO_SOURCE_;
-    fi
+SYSTEM) # =====================================================================
 
-    if Is_True ${GROUP_CURRENCY_CHECK}; then
-        if [[ -n "${GROUP_PACKAGES_MISS_SYST_[*]:-}" ]]
-        then # there are some missing packages
-            #local _group
-            declare -g a_group
-            for a_group in ${!GROUP_PACKAGES_MISS_SYST_[*]}; do
-            if [[ -n "${GROUP_PACKAGES_MISS_SYST_[$a_group]}" ]]; then
-            UI_Passive_Alert "\nPACKAGES MISSING FROM GROUPS ${a_group}\nThe following packages are listed as group members in the 
-            repository but are not installed locally. Please choose whether to install each package to your system"
-            Unset_Array ASK_AUTO_SOURCE_; ASK_AUTO_SOURCE_=(
-            [LIST_VAR_NAME]="GROUP_PACKAGES_MISS_SYST_[${a_group}]"
-            [QUERY_STRING]='\n${_item}\nInstall group member package?'
-            [ACTION_CMD]='Install_Package "${_item}"'
-            [DEFAULT_CHOICE]='true'
-            [EXECUTED_CMD]='Noforce_Alert "(${_item} installed)"; Add_To GROUP_PACKAGES_INST_SYST ${_item}; Remove_From GROUP_PACKAGES_MISS_SYST_[$a_group] "${_item}"; CHANGE_MADE=true;'
-            [SKIPPED_CMD]='Noforce_Alert "(${_item} skipped)"'
-            [FAILED_CMD]='Noforce_Alert "(${_item} installed failed!)"'
-            [FORCE_VALUE]='${FORCE}'
-            ); Ask_Auto_Action ASK_AUTO_SOURCE_;
-            fi
-            done
-            unset a_group
+# GROUPS MISSING FROM CONFIG
+# -----------------------------------------------------------------------------
+if [[ -n ${GROUPS_MISS_CONF[*]:-} ]]; then
+UI_Backup_Alert "\nUNINSTALL GROUPS THAT ARE NOT IN 
+$(Upper_Case ${SCRIPTNAME}) FILES LIST?\n${HR} \nThe following groups are 
+installed to your system but are not listed in your ${SCRIPTNAME} groups 
+list. Please choose whether to uninstall each group from your system to 
+match the ${SCRIPTNAME} list"
+Unset_Array ASK_AUTO_SOURCE_; ASK_AUTO_SOURCE_=(
+[LIST_VAR_NAME]='GROUPS_MISS_CONF'
+[QUERY_STRING]='\n${_item}\nUninstall group?'
+[ACTION_CMD]='Uninstall_Package "${_item}"'
+[EXECUTED_CMD]='
+Noforce_Alert "(${_item} uninstalled)"; 
+Add_To GROUPS_REMO_SYST "${_item}"; 
+Remove_From GROUPS_MISS_CONF "${_item}"; 
+CHANGE_MADE=true; '
+[SKIPPED_CMD]='Noforce_Alert "(${_item} skipped)"'
+[FAILED_CMD]='Noforce_Alert "(${_item} uninstall failed!)"'
+[FORCE_VALUE]='${FORCE}'
+[DEFAULT_CHOICE]='${AUTO_REMOVE}'
+); Ask_Auto_Action ASK_AUTO_SOURCE_;
+fi
+
+# GROUPS MISSING FROM SYSTEM
+# -----------------------------------------------------------------------------
+if [[ -n ${GROUPS_MISS_SYST[*]:-} ]]; then
+UI_Backup_Alert "\nREMOVE GROUP NAMES IN $(Upper_Case ${SCRIPTNAME}) THAT 
+AREN'T CURRENTLY INSTALLED?\n${HR} \nThe following groups are not installed 
+on your system but *are* listed in your ${SCRIPTNAME} groups list. Please 
+choose whether to install each group to your system"
+Unset_Array ASK_AUTO_SOURCE_; ASK_AUTO_SOURCE_=(
+[LIST_VAR_NAME]='GROUPS_MISS_SYST'
+[QUERY_STRING]='\n${_item}\nInstall group?'
+[ACTION_CMD]='Install_Package "${_item}"'
+[DEFAULT_CHOICE]='true'
+[EXECUTED_CMD]='
+Noforce_Alert "(${_item} installed)"; 
+Add_To GROUPS_INST_SYST "${_item}"; 
+Remove_From GROUPS_MISS_SYST "${_item}"; 
+CHANGE_MADE=true;'
+[SKIPPED_CMD]='Noforce_Alert "(${_item} skipped)"'
+[FAILED_CMD]='Noforce_Alert "(${_item} installed failed!)"'
+[FORCE_VALUE]='${FORCE}'
+); Ask_Auto_Action ASK_AUTO_SOURCE_;
+fi
+
+if Is_True ${GROUP_CURRENCY_CHECK}; then
+    if [[ -n "${GROUP_PACKAGES_MISS_SYST_[*]:-}" ]]
+    then # there are some missing packages
+        #local _group
+        declare -g a_group
+        for a_group in ${!GROUP_PACKAGES_MISS_SYST_[*]}; do
+        if [[ -n "${GROUP_PACKAGES_MISS_SYST_[$a_group]}" ]]; then
+        UI_Passive_Alert "\nPACKAGES MISSING FROM GROUPS ${a_group}\nThe 
+        following packages are listed as group members in the repository 
+        but are not installed locally. Please choose whether to install 
+        each package to your system"
+        Unset_Array ASK_AUTO_SOURCE_; ASK_AUTO_SOURCE_=(
+        [LIST_VAR_NAME]="GROUP_PACKAGES_MISS_SYST_[${a_group}]"
+        [QUERY_STRING]='\n${_item}\nInstall group member package?'
+        [ACTION_CMD]='Install_Package "${_item}"'
+        [DEFAULT_CHOICE]='true'
+        [EXECUTED_CMD]='
+        Noforce_Alert "(${_item} installed)"; Add_To 
+        GROUP_PACKAGES_INST_SYST ${_item}; Remove_From 
+        GROUP_PACKAGES_MISS_SYST_[$a_group] "${_item}"; CHANGE_MADE=true;'
+        [SKIPPED_CMD]='Noforce_Alert "(${_item} skipped)"'
+        [FAILED_CMD]='Noforce_Alert "(${_item} installed failed!)"'
+        [FORCE_VALUE]='${FORCE}'
+        ); Ask_Auto_Action ASK_AUTO_SOURCE_;
         fi
-        if [[ -n "${GROUP_PACKAGES_MISS_REPO_[*]:-}" ]]
-        then # there are some possibly removed packages
-            #local _group
-            declare -g a_group
-            for a_group in ${!GROUP_PACKAGES_MISS_REPO_[*]}; do
-            if [[ -n "${GROUP_PACKAGES_MISS_REPO_[$a_group]}" ]]; then
-            UI_Passive_Alert "\nGROUP PACKAGES REMOVED FROM REPO (group: ${a_group}):\nThe following installed packages are listed as group members locally but
-            are no longer listed as group members in the repository, indicating they may have been removed from the group. Please choose whether to 
-            uninstall each package from your system"
-            Unset_Array ASK_AUTO_SOURCE_; ASK_AUTO_SOURCE_=(
-            [LIST_VAR_NAME]="GROUP_PACKAGES_MISS_REPO_[${a_group}]"
-            [QUERY_STRING]='\n${_item}\nUninstall old group member package?'
-            [ACTION_CMD]='Uninstall_Package "${_item}"'
-            [EXECUTED_CMD]='Noforce_Alert "(${_item} uninstalled)"; Add_To GROUP_PACKAGES_REMO_SYST ${_item}; Remove_From GROUP_PACKAGES_MISS_REPO_[$a_group] "${_item}"; CHANGE_MADE=true;'
-            [SKIPPED_CMD]='Noforce_Alert "(${_item} skipped)"'
-            [FAILED_CMD]='Noforce_Alert "(${_item} uninstalled failed!)"'
-            [FORCE_VALUE]='${FORCE}'
-            [DEFAULT_CHOICE]='${AUTO_REMOVE}'
-            ); Ask_Auto_Action ASK_AUTO_SOURCE_;
-            fi
-            done
-            unset a_group
-        fi
+        done
+        unset a_group
     fi
+    if [[ -n "${GROUP_PACKAGES_MISS_REPO_[*]:-}" ]]
+    then # there are some possibly removed packages
+        #local _group
+        declare -g a_group
+        for a_group in ${!GROUP_PACKAGES_MISS_REPO_[*]}; do
+        if [[ -n "${GROUP_PACKAGES_MISS_REPO_[$a_group]}" ]]; then
+        UI_Passive_Alert "\nGROUP PACKAGES REMOVED FROM REPO (group: 
+        ${a_group}):\nThe following installed packages are listed as group 
+        members locally but are no longer listed as group members in the 
+        repository, indicating they may have been removed from the group.  
+        Please choose whether to uninstall each package from your system"
+        Unset_Array ASK_AUTO_SOURCE_; ASK_AUTO_SOURCE_=(
+        [LIST_VAR_NAME]="GROUP_PACKAGES_MISS_REPO_[${a_group}]"
+        [QUERY_STRING]='\n${_item}\nUninstall old group member package?'
+        [ACTION_CMD]='Uninstall_Package "${_item}"'
+        [EXECUTED_CMD]='
+        Noforce_Alert "(${_item} uninstalled)"; Add_To 
+        GROUP_PACKAGES_REMO_SYST ${_item}; Remove_From 
+        GROUP_PACKAGES_MISS_REPO_[$a_group] "${_item}"; CHANGE_MADE=true;'
+        [SKIPPED_CMD]='Noforce_Alert "(${_item} skipped)"'
+        [FAILED_CMD]='Noforce_Alert "(${_item} uninstalled failed!)"'
+        [FORCE_VALUE]='${FORCE}'
+        [DEFAULT_CHOICE]='${AUTO_REMOVE}'
+        ); Ask_Auto_Action ASK_AUTO_SOURCE_;
+        fi
+        done
+        unset a_group
+    fi
+fi
 
 ;;
 esac
@@ -614,22 +616,40 @@ then
 fi
 
 # TODO: add group packages loop
-Progress_Report GROUPS_GOOD "GROUPS UP TO DATE: group listed in ${SCRIPTNAME} and >80% local install"
-Progress_Report GROUPS_MISS_CONF "GROUPS NOT IN ${SCRIPTNAME}: installed groups not listed in ${SCRIPTNAME} config"
-Progress_Report GROUPS_MISS_SYST "GROUPS NOT INSTALLED: groups listed in ${SCRIPTNAME} config but not installed"
-Progress_Report GROUPS_INST_SYST "NEW GROUP INSTALLS: newly installed groups to match existing list in ${SCRIPTNAME}"
-Progress_Report GROUPS_INST_CONF "GROUPS ADDED TO ${SCRIPTNAME}: existing installed groups added to ${SCRIPTNAME} list"
-Progress_Report GROUPS_REMO_SYST "GROUP UNINSTALLS: groups uninstalled, matches groups not listed in ${SCRIPTNAME}"
-Progress_Report GROUPS_REMO_CONF "GROUPS REMOVED FROM ${SCRIPTNAME}: matches groups not installed to system"
-Progress_Report GROUP_PACKAGES_MISS_SYST "GROUP PACKAGES; MISSING?: group member packages not installed"
-Progress_Report GROUP_PACKAGES_MISS_REPO "GROUP PACKAGES; REMOVED?: installed packages not listed in group on repo"
+Progress_Report GROUPS_GOOD \
+"GROUPS UP TO DATE: groups listed in ${SCRIPTNAME} and >80% local install"
+
+Progress_Report GROUPS_MISS_CONF \
+"GROUPS NOT IN ${SCRIPTNAME}: ${SCRIPTNAME} groups list does not match system."
+
+Progress_Report GROUPS_MISS_SYST \
+"GROUPS NOT INSTALLED: system does not match groups in ${SCRIPTNAME}"
+
+Progress_Report GROUPS_INST_SYST \
+"NEW GROUP INSTALLS: system updated to match ${SCRIPTNAME}"
+
+Progress_Report GROUPS_INST_CONF \
+"GROUPS ADDED TO ${SCRIPTNAME}: ${SCRIPTNAME} updated to match system"
+
+Progress_Report GROUPS_REMO_SYST \
+"GROUP UNINSTALLS: groups uninstalled to match ${SCRIPTNAME}"
+
+Progress_Report GROUPS_REMO_CONF \
+"GROUPS REMOVED FROM ${SCRIPTNAME}: ${SCRIPTNAME} updated to match system"
+
+Progress_Report GROUP_PACKAGES_MISS_SYST \
+"GROUP PACKAGES; MISSING?: group member packages not installed"
+
+Progress_Report GROUP_PACKAGES_MISS_REPO \
+"GROUP PACKAGES; REMOVED?: installed packages not listed in group on repo"
+
 [[ -z ${MODE_FINAL:-} ]] || Unit_Report "\n${MODE_FINAL}"
 
 }
 
-# ==============================================================================
+# =============================================================================
 # PACKAGES
-# ==============================================================================
+# =============================================================================
 
 UNIT_Packages ()
 {
@@ -638,23 +658,21 @@ Is_True ${SKIP_PACKAGES} && return || true
 
 Unit_Report "${PACKAGES_FILEPATH}"
 
-# TODO: deal with timeline of updating the group packages
-#PACKAGES_LOCAL_ALLGROUPS="$(pacman -Qgq | Normalize_To_List)"
+local _pkgs_groups="$(echo "${GROUP_PACKAGES_SYST_[*]}" | Normalize_To_List)"
+local _pkgs_explicit="$(pacman -Qeq)"
+local _pkgs_manual="$(pacman -Qmq)"
+local _pkgs_repo="$(Set_Op_Difference "${_pkgs_explicit}" "${_pkgs_manual}")"
+local _pkgs_noaur="$(Set_Op_Difference "${_pkgs_explicit}" "${_pkgs_manual}")"
+local _pkgs_repo_allknown="$(pacman -Ssq)"
 
-local _packages_groups="$(echo "${GROUP_PACKAGES_SYST_[*]}" | Normalize_To_List)"
-local _packages_explicit="$(pacman -Qeq)"
-local _packages_manual="$(pacman -Qmq)"
-local _packages_repo="$(Set_Op_Difference "${_packages_explicit}" "${_packages_manual}")"
-local _packages_noaur="$(Set_Op_Difference "${_packages_explicit}" "${_packages_manual}")"
-local _packages_repo_allknown="$(pacman -Ssq)"
+local _pkgs_config_all="$(Read_File_Drop_Comments ${PACKAGES_FILEPATH} \
+                        | Normalize_To_List)"
 
-local _packages_config_all="$(Read_File_Drop_Comments ${PACKAGES_FILEPATH} | Normalize_To_List)"
+AUR_CONF="$(Set_Op_Difference "${_pkgs_config_all}" "${_pkgs_repo_allknown}")"
+PACKAGES_CONF="$(Set_Op_Difference "${_pkgs_config_all}" "${AUR_CONF}")"
 
-AUR_CONF="$(Set_Op_Difference "${_packages_config_all}" "${_packages_repo_allknown}")"
-PACKAGES_CONF="$(Set_Op_Difference "${_packages_config_all}" "${AUR_CONF}")"
-
-PACKAGES_SYST="$(Set_Op_Difference "${_packages_repo}" "${_packages_groups}")"
-AUR_SYST="$(Set_Op_Intersection "${_packages_explicit}" "${_packages_manual}")"
+PACKAGES_SYST="$(Set_Op_Difference "${_pkgs_repo}" "${_pkgs_groups}")"
+AUR_SYST="$(Set_Op_Intersection "${_pkgs_explicit}" "${_pkgs_manual}")"
 
 PACKAGES_MISS_SYST="$(Set_Op_Difference "${PACKAGES_CONF}" "${PACKAGES_SYST}")"
 PACKAGES_MISS_CONF="$(Set_Op_Difference "${PACKAGES_SYST}" "${PACKAGES_CONF}")"
@@ -666,202 +684,208 @@ AUR_GOOD="$(Set_Op_Intersection "${AUR_CONF}" "${AUR_SYST}")"
 CHANGE_MADE=false
 
 case $MODE in
-CONFIG)
+CONFIG) # =====================================================================
 
-    # PACKAGES MISSING FROM CONFIG
-    # -------------------------------------------------------------------------
-    if [[ -n ${PACKAGES_MISS_CONF[*]:-} ]]; then
-    UI_Backup_Alert "\nADD PACKAGES THAT ARE INSTALLED BUT NOT IN $(Upper_Case ${SCRIPTNAME}) FILES LIST?\n${HR} \nThe following packages are installed to 
-    your system but are not listed in your ${SCRIPTNAME} package list. Please 
-    choose whether to add each item to the ${SCRIPTNAME} package list"
-    Unset_Array ASK_AUTO_SOURCE_; ASK_AUTO_SOURCE_=(
-    [LIST_VAR_NAME]='PACKAGES_MISS_CONF'
-    [QUERY_STRING]='\n${_item}\nAdd package name to ${SCRIPTNAME} config?'
-    [ACTION_CMD]='Add_To PACKAGES_INST_CONF "${_item}"; Remove_From PACKAGES_MISS_CONF "${_item}"; CHANGE_MADE=true;'
-    [DEFAULT_CHOICE]='true'
-    [EXECUTED_CMD]='Noforce_Alert "(${_item} added)"'
-    [SKIPPED_CMD]='Noforce_Alert "(${_item} skipped)"'
-    [FAILED_CMD]='Noforce_Alert "(${_item} add failed!)"'
-    [FORCE_VALUE]='${FORCE}'
-    ); Ask_Auto_Action ASK_AUTO_SOURCE_;
-    fi
+# PACKAGES MISSING FROM CONFIG
+# -----------------------------------------------------------------------------
+if [[ -n ${PACKAGES_MISS_CONF[*]:-} ]]; then
+UI_Backup_Alert "\nADD PACKAGES THAT ARE INSTALLED BUT NOT IN
+$(Upper_Case ${SCRIPTNAME}) FILES LIST?\n${HR} \nThe following packages are 
+installed to your system but are not listed in your ${SCRIPTNAME} package 
+list. Please choose whether to add each item to the ${SCRIPTNAME} package 
+list"
+Unset_Array ASK_AUTO_SOURCE_; ASK_AUTO_SOURCE_=(
+[LIST_VAR_NAME]='PACKAGES_MISS_CONF'
+[QUERY_STRING]='\n${_item}\nAdd package name to ${SCRIPTNAME} config?'
+[ACTION_CMD]='
+Add_To PACKAGES_INST_CONF "${_item}";
+Remove_From PACKAGES_MISS_CONF "${_item}";
+CHANGE_MADE=true;'
+[DEFAULT_CHOICE]='true'
+[EXECUTED_CMD]='Noforce_Alert "(${_item} added)"'
+[SKIPPED_CMD]='Noforce_Alert "(${_item} skipped)"'
+[FAILED_CMD]='Noforce_Alert "(${_item} add failed!)"'
+[FORCE_VALUE]='${FORCE}'
+); Ask_Auto_Action ASK_AUTO_SOURCE_;
+fi
 
-    # AUR MISSING FROM CONFIG
-    # -------------------------------------------------------------------------
-    if [[ -n ${AUR_MISS_CONF[*]:-} ]]; then
-    UI_Backup_Alert "\nADD AUR PACKAGES THAT ARE INSTALLED BUT NOT IN $(Upper_Case ${SCRIPTNAME}) FILES LIST?\n${HR} \nThe following aur packages are 
-    installed to your system but are not listed in your ${SCRIPTNAME} aur package list.  Please choose whether to add each item to the ${SCRIPTNAME} 
-    package list"
-    Unset_Array ASK_AUTO_SOURCE_; ASK_AUTO_SOURCE_=(
-    [LIST_VAR_NAME]='AUR_MISS_CONF'
-    [QUERY_STRING]='\n${_item}\nAdd aur package name to ${SCRIPTNAME} config?'
-    [ACTION_CMD]='Add_To AUR_INST_CONF "${_item}"; Remove_From AUR_MISS_CONF "${_item}"; CHANGE_MADE=true; '
-    [DEFAULT_CHOICE]='true'
-    [EXECUTED_CMD]='Noforce_Alert "(${_item} added)";'
-    [SKIPPED_CMD]='Noforce_Alert "(${_item} skipped)"'
-    [FAILED_CMD]='Noforce_Alert "(${_item} add failed!)"'
-    [FORCE_VALUE]='${FORCE}'
-    ); Ask_Auto_Action ASK_AUTO_SOURCE_;
-    fi
+# AUR MISSING FROM CONFIG
+# -----------------------------------------------------------------------------
+if [[ -n ${AUR_MISS_CONF[*]:-} ]]; then
+UI_Backup_Alert "\nADD AUR PACKAGES THAT ARE INSTALLED BUT NOT IN 
+$(Upper_Case ${SCRIPTNAME}) FILES LIST?\n${HR} \nThe following aur packages are 
+installed to your system but are not listed in your ${SCRIPTNAME} aur package 
+list.  Please choose whether to add each item to the ${SCRIPTNAME} package 
+list"
+Unset_Array ASK_AUTO_SOURCE_; ASK_AUTO_SOURCE_=(
+[LIST_VAR_NAME]='AUR_MISS_CONF'
+[QUERY_STRING]='\n${_item}\nAdd aur package name to ${SCRIPTNAME} config?'
+[ACTION_CMD]='
+Add_To AUR_INST_CONF "${_item}";
+Remove_From AUR_MISS_CONF "${_item}";
+CHANGE_MADE=true; '
+[DEFAULT_CHOICE]='true'
+[EXECUTED_CMD]='Noforce_Alert "(${_item} added)";'
+[SKIPPED_CMD]='Noforce_Alert "(${_item} skipped)"'
+[FAILED_CMD]='Noforce_Alert "(${_item} add failed!)"'
+[FORCE_VALUE]='${FORCE}'
+); Ask_Auto_Action ASK_AUTO_SOURCE_;
+fi
 
-    # PACKAGES MISSING FROM SYSTEM
-    # -------------------------------------------------------------------------
-    if [[ -n ${PACKAGES_MISS_SYST[*]:-} ]]; then
-    UI_Backup_Alert "\nREMOVE PACKAGES FROM $(Upper_Case ${SCRIPTNAME}) THAT AREN'T CURRENTLY INSTALLED?\n${HR} \nThe following packages are not installed on your system but *are* listed in your ${SCRIPTNAME} package list. Please choose whether to remove each item from the ${SCRIPTNAME} package list"
-    Unset_Array ASK_AUTO_SOURCE_; ASK_AUTO_SOURCE_=(
-    [LIST_VAR_NAME]='PACKAGES_MISS_SYST'
-    [QUERY_STRING]='\n${_item}\nRemove package name from ${SCRIPTNAME} config?'
-    [ACTION_CMD]='Add_To PACKAGES_REMO_CONF "${_item}"; Remove_From PACKAGES_MISS_SYST "${_item}"; CHANGE_MADE=true; '
-    [EXECUTED_CMD]='Noforce_Alert "(${_item} removed)";'
-    [SKIPPED_CMD]='Noforce_Alert "(${_item} skipped)"'
-    [FAILED_CMD]='Noforce_Alert "(${_item} remove failed!)"'
-    [FORCE_VALUE]='${FORCE}'
-    [DEFAULT_CHOICE]='${AUTO_REMOVE}'
-    ); Ask_Auto_Action ASK_AUTO_SOURCE_;
-    fi
+# PACKAGES MISSING FROM SYSTEM
+# -----------------------------------------------------------------------------
+if [[ -n ${PACKAGES_MISS_SYST[*]:-} ]]; then
+UI_Backup_Alert "\nREMOVE PACKAGES FROM $(Upper_Case ${SCRIPTNAME}) THAT 
+AREN'T CURRENTLY INSTALLED?\n${HR} \nThe following packages are not 
+installed on your system but *are* listed in your ${SCRIPTNAME} package 
+list. Please choose whether to remove each item from the ${SCRIPTNAME} 
+package list"
+Unset_Array ASK_AUTO_SOURCE_; ASK_AUTO_SOURCE_=(
+[LIST_VAR_NAME]='PACKAGES_MISS_SYST'
+[QUERY_STRING]='\n${_item}\nRemove package name from ${SCRIPTNAME} config?'
+[ACTION_CMD]='
+Add_To PACKAGES_REMO_CONF "${_item}"; 
+Remove_From PACKAGES_MISS_SYST "${_item}"; 
+CHANGE_MADE=true; '
+[EXECUTED_CMD]='Noforce_Alert "(${_item} removed)";'
+[SKIPPED_CMD]='Noforce_Alert "(${_item} skipped)"'
+[FAILED_CMD]='Noforce_Alert "(${_item} remove failed!)"'
+[FORCE_VALUE]='${FORCE}'
+[DEFAULT_CHOICE]='${AUTO_REMOVE}'
+); Ask_Auto_Action ASK_AUTO_SOURCE_;
+fi
 
-    # AUR MISSING FROM SYSTEM
-    # -------------------------------------------------------------------------
-    if [[ -n ${AUR_MISS_SYST[*]:-} ]]; then
-    UI_Backup_Alert "\nREMOVE AUR PACKAGES FROM $(Upper_Case ${SCRIPTNAME}) THAT AREN'T CURRENTLY INSTALLED?\n${HR}\nThe following aur packages are not installed on your system but *are* listed in your ${SCRIPTNAME} aur package list. Please choose whether to remove each item from the ${SCRIPTNAME} package list"
-    Unset_Array ASK_AUTO_SOURCE_; ASK_AUTO_SOURCE_=(
-    [LIST_VAR_NAME]='AUR_MISS_SYST'
-    [QUERY_STRING]='\n${_item}\nRemove aur package name from ${SCRIPTNAME} config?'
-    [ACTION_CMD]='Add_To AUR_REMO_CONF "${_item}"; Remove_From AUR_MISS_SYST "${_item}"; CHANGE_MADE=true; '
-    [EXECUTED_CMD]='Noforce_Alert "(${_item} removed)";'
-    [SKIPPED_CMD]='Noforce_Alert "(${_item} skipped)"'
-    [FAILED_CMD]='Noforce_Alert "(${_item} remove failed!)"'
-    [FORCE_VALUE]='${FORCE}'
-    [DEFAULT_CHOICE]='${AUTO_REMOVE}'
-    ); Ask_Auto_Action ASK_AUTO_SOURCE_;
-    fi
+# AUR MISSING FROM SYSTEM
+# -----------------------------------------------------------------------------
+if [[ -n ${AUR_MISS_SYST[*]:-} ]]; then
+UI_Backup_Alert "\nREMOVE AUR PACKAGES FROM $(Upper_Case ${SCRIPTNAME}) 
+THAT AREN'T CURRENTLY INSTALLED?\n${HR}\nThe following aur packages are not 
+installed on your system but *are* listed in your ${SCRIPTNAME} aur package 
+list. Please choose whether to remove each item from the ${SCRIPTNAME} 
+package list"
+Unset_Array ASK_AUTO_SOURCE_; ASK_AUTO_SOURCE_=(
+[LIST_VAR_NAME]='AUR_MISS_SYST'
+[QUERY_STRING]='\n${_item}\nRemove aur package name from ${SCRIPTNAME} config?'
+[ACTION_CMD]='
+Add_To AUR_REMO_CONF "${_item}"; 
+Remove_From AUR_MISS_SYST "${_item}"; 
+CHANGE_MADE=true; '
+[EXECUTED_CMD]='Noforce_Alert "(${_item} removed)";'
+[SKIPPED_CMD]='Noforce_Alert "(${_item} skipped)"'
+[FAILED_CMD]='Noforce_Alert "(${_item} remove failed!)"'
+[FORCE_VALUE]='${FORCE}'
+[DEFAULT_CHOICE]='${AUTO_REMOVE}'
+); Ask_Auto_Action ASK_AUTO_SOURCE_;
+fi
 
-    # UPDATE PACKAGES LIST
-    if [[ -n ${PACKAGES_INST_CONF:-}${PACKAGES_REMO_CONF:-}${AUR_INST_CONF:-}${AUR_REMO_CONF:-} ]]
-    then
+# UPDATE PACKAGES LIST
+# -----------------------------------------------------------------------------
+MODE_FINAL=$(Update_Packages_List_If_Changed)
 
-        # copy current config packages file if present
-        [[ -e "${PACKAGES_FILEPATH}" ]] && cp "${PACKAGES_FILEPATH}" "${TMPDIR}/${PACKAGES_FILENAME}"
-
-        # add newly added packages to list
-        if [[ -n ${PACKAGES_INST_CONF:-} ]]
-        then
-            echo -e "\n# PACKAGES added by ${SCRIPTNAME} on $(date +%F)" >> "${TMPDIR}/${PACKAGES_FILENAME}"
-            echo "# ${HR%--}" >> "${TMPDIR}/${PACKAGES_FILENAME}"
-            echo ${PACKAGES_INST_CONF} | fmt -w 80 >> "${TMPDIR}/${PACKAGES_FILENAME}"
-        fi
-        if [[ -n ${AUR_INST_CONF:-} ]]
-        then
-            echo -e "\n# AUR PACKAGES added by ${SCRIPTNAME} on $(date +%F)" >> "${TMPDIR}/${PACKAGES_FILENAME}"
-            echo "# ${HR%--}" >> "${TMPDIR}/${PACKAGES_FILENAME}"
-            echo ${AUR_INST_CONF} | fmt -w 80 >> "${TMPDIR}/${PACKAGES_FILENAME}"
-        fi
-
-        # include a summary of removed packages
-        if [[ -n ${PACKAGES_REMO_CONF:-} ]]
-        then
-            local _package_name
-            for _package_name in ${PACKAGES_REMO_CONF}
-            do
-                Remove_Item_From_File "${_package_name}" "${TMPDIR}/${PACKAGES_FILENAME}"
-            done
-            echo -e "\n# PACKAGES REMOVED by ${SCRIPTNAME} on $(date +%F)" >> "${TMPDIR}/${PACKAGES_FILENAME}"
-            echo "# ${HR%--}" >> "${TMPDIR}/${PACKAGES_FILENAME}"
-            echo "# $(echo ${PACKAGES_REMO_CONF})" >> "${TMPDIR}/${PACKAGES_FILENAME}"
-        fi
-        if [[ -n ${AUR_REMO_CONF:-} ]]
-        then
-            local _package_name
-            for _package_name in ${AUR_REMO_CONF}
-            do
-                Remove_Item_From_File "${_package_name}" "${TMPDIR}/${PACKAGES_FILENAME}"
-            done
-            echo -e "\n# AUR PACKAGES REMOVED by ${SCRIPTNAME} on $(date +%F)" >> "${TMPDIR}/${PACKAGES_FILENAME}"
-            echo "# ${HR%--}" >> "${TMPDIR}/${PACKAGES_FILENAME}"
-            echo "# $(echo ${AUR_REMO_CONF})" >> "${TMPDIR}/${PACKAGES_FILENAME}"
-        fi
-
-        # atomic write
-        install -CD --backup=${BACKUP_MODE} -S${BACKUP_SUFFIX} "${TMPDIR}/${PACKAGES_FILENAME}" "${PACKAGES_FILEPATH}" \
-        && MODE_FINAL="SUCCESSFULLY UPDATED PACKAGES LIST" \
-        || MODE_FINAL="FAILED TO UPDATE PACKAGES LIST!"
-
-    else
-        MODE_FINAL= #"NO CHANGES MADE; PACKAGES LIST NOT UPDATED"
-    fi
 ;;
-SYSTEM)
 
-    # PACKAGES MISSING FROM CONFIG
-    # -------------------------------------------------------------------------
-    if [[ -n ${PACKAGES_MISS_CONF[*]:-} ]]; then
-    UI_Backup_Alert "\nUNINSTALL PACKAGES THAT ARE NOT IN $(Upper_Case ${SCRIPTNAME}) FILES LIST?\n${HR} \nThe following packages are installed to your system but are not listed in your ${SCRIPTNAME} package list. Please choose whether to uninstall each item from your system to match the ${SCRIPTNAME} list"
-    Unset_Array ASK_AUTO_SOURCE_; ASK_AUTO_SOURCE_=(
-    [LIST_VAR_NAME]='PACKAGES_MISS_CONF'
-    [QUERY_STRING]='\n${_item}\nUninstall package?'
-    [ACTION_CMD]='Uninstall_Package "${_item}"'
-    [EXECUTED_CMD]='Noforce_Alert "(${_item} uninstalled)"; Add_To PACKAGES_REMO_SYST "${_item}"; Remove_From PACKAGES_MISS_CONF "${_item}"; CHANGE_MADE=true; '
-    [SKIPPED_CMD]='Noforce_Alert "(${_item} skipped)"'
-    [FAILED_CMD]='Noforce_Alert "(${_item} uninstall failed!)"'
-    [FORCE_VALUE]='${FORCE}'
-    [DEFAULT_CHOICE]='${AUTO_REMOVE}'
-    ); Ask_Auto_Action ASK_AUTO_SOURCE_;
-    fi
+SYSTEM) # =====================================================================
 
-    # AUR MISSING FROM CONFIG
-    # -------------------------------------------------------------------------
-    if [[ -n ${AUR_MISS_CONF[*]:-} ]]; then
-    UI_Backup_Alert "\nUNINSTALL AUR PACKAGES THAT ARE NOT IN $(Upper_Case ${SCRIPTNAME}) FILES LIST?\n${HR} \nThe following aur packages are installed to your system but are not listed in your ${SCRIPTNAME} aur package list. Please choose whether to uninstall each item from your system to match the ${SCRIPTNAME} list"
-    Unset_Array ASK_AUTO_SOURCE_; ASK_AUTO_SOURCE_=(
-    [LIST_VAR_NAME]='AUR_MISS_CONF'
-    [QUERY_STRING]='\n${_item}\nUninstall aur package?'
-    [ACTION_CMD]='Uninstall_Package "${_item}"'
-    [EXECUTED_CMD]='Noforce_Alert "(${_item} uninstalled)"; Add_To AUR_REMO_SYST "${_item}"; Remove_From AUR_MISS_CONF "${_item}"; CHANGE_MADE=true; '
-    [SKIPPED_CMD]='Noforce_Alert "(${_item} skipped)"'
-    [FAILED_CMD]='Noforce_Alert "(${_item} uninstall failed!)"'
-    [FORCE_VALUE]='${FORCE}'
-    [DEFAULT_CHOICE]='${AUTO_REMOVE}'
-    ); Ask_Auto_Action ASK_AUTO_SOURCE_;
-    fi
+# PACKAGES MISSING FROM CONFIG
+# -----------------------------------------------------------------------------
+if [[ -n ${PACKAGES_MISS_CONF[*]:-} ]]; then
+UI_Backup_Alert "\nUNINSTALL PACKAGES THAT ARE NOT IN 
+$(Upper_Case ${SCRIPTNAME}) FILES LIST?\n${HR} \nThe following packages are 
+installed to your system but are not listed in your ${SCRIPTNAME} package 
+list. Please choose whether to uninstall each item from your system to 
+match the ${SCRIPTNAME} list"
+Unset_Array ASK_AUTO_SOURCE_; ASK_AUTO_SOURCE_=(
+[LIST_VAR_NAME]='PACKAGES_MISS_CONF'
+[QUERY_STRING]='\n${_item}\nUninstall package?'
+[ACTION_CMD]='Uninstall_Package "${_item}"'
+[EXECUTED_CMD]='
+Noforce_Alert "(${_item} uninstalled)"; 
+Add_To PACKAGES_REMO_SYST "${_item}"; 
+Remove_From PACKAGES_MISS_CONF "${_item}"; 
+CHANGE_MADE=true; '
+[SKIPPED_CMD]='Noforce_Alert "(${_item} skipped)"'
+[FAILED_CMD]='Noforce_Alert "(${_item} uninstall failed!)"'
+[FORCE_VALUE]='${FORCE}'
+[DEFAULT_CHOICE]='${AUTO_REMOVE}'
+); Ask_Auto_Action ASK_AUTO_SOURCE_;
+fi
 
-    # PACKAGES MISSING FROM SYSTEM
-    # -------------------------------------------------------------------------
-    if [[ -n ${PACKAGES_MISS_SYST[*]:-} ]]; then
-    UI_Backup_Alert "\nINSTALL MISSING PACKAGES LISTED IN $(Upper_Case ${SCRIPTNAME})?\n${HR} \nThe following packages are not installed on your system but *are* 
-    listed in your ${SCRIPTNAME} package list. Please choose whether to install each item to your system"
-    Unset_Array ASK_AUTO_SOURCE_; ASK_AUTO_SOURCE_=(
-    [LIST_VAR_NAME]='PACKAGES_MISS_SYST'
-    [QUERY_STRING]='\n${_item}\nInstall package?'
-    [ACTION_CMD]='Install_Package "${_item}"'
-    [DEFAULT_CHOICE]='true'
-    [EXECUTED_CMD]='Noforce_Alert "(${_item} installed)"; Add_To PACKAGES_INST_SYST "${_item}"; Remove_From PACKAGES_MISS_SYST "${_item}"; CHANGE_MADE=true;'
-    [SKIPPED_CMD]='Noforce_Alert "(${_item} skipped)"'
-    [FAILED_CMD]='Noforce_Alert "(${_item} installed failed!)"'
-    [FORCE_VALUE]='${FORCE}'
-    ); Ask_Auto_Action ASK_AUTO_SOURCE_;
-    fi
+# AUR MISSING FROM CONFIG
+# -----------------------------------------------------------------------------
+if [[ -n ${AUR_MISS_CONF[*]:-} ]]; then
+UI_Backup_Alert "\nUNINSTALL AUR PACKAGES THAT ARE NOT IN
+$(Upper_Case ${SCRIPTNAME}) FILES LIST?\n${HR} \nThe following aur packages 
+are installed to your system but are not listed in your ${SCRIPTNAME} aur 
+package list. Please choose whether to uninstall each item from your system 
+to match the ${SCRIPTNAME} list"
+Unset_Array ASK_AUTO_SOURCE_; ASK_AUTO_SOURCE_=(
+[LIST_VAR_NAME]='AUR_MISS_CONF'
+[QUERY_STRING]='\n${_item}\nUninstall aur package?'
+[ACTION_CMD]='Uninstall_Package "${_item}"'
+[EXECUTED_CMD]='
+Noforce_Alert "(${_item} uninstalled)";
+Add_To AUR_REMO_SYST "${_item}";
+Remove_From AUR_MISS_CONF "${_item}";
+CHANGE_MADE=true; '
+[SKIPPED_CMD]='Noforce_Alert "(${_item} skipped)"'
+[FAILED_CMD]='Noforce_Alert "(${_item} uninstall failed!)"'
+[FORCE_VALUE]='${FORCE}'
+[DEFAULT_CHOICE]='${AUTO_REMOVE}'
+); Ask_Auto_Action ASK_AUTO_SOURCE_;
+fi
 
-    # AUR MISSING FROM SYSTEM
-    # -------------------------------------------------------------------------
-    if [[ -n ${AUR_MISS_SYST[*]:-} ]]; then
-    UI_Backup_Alert "\nINSTALL MISSING AUR PACKAGES LISTED IN $(Upper_Case ${SCRIPTNAME})?\n${HR} \nThe following aur packages are not installed on your system but
-    *are* listed in your ${SCRIPTNAME} aur package list. Please choose whether to install each item to your system"
-    Unset_Array ASK_AUTO_SOURCE_; ASK_AUTO_SOURCE_=(
-    [LIST_VAR_NAME]='AUR_MISS_SYST'
-    [QUERY_STRING]='\n${_item}\nInstall package?'
-    [ACTION_CMD]='Install_Package_From_AUR_Helper "${_item}"'
-    [DEFAULT_CHOICE]='true'
-    [EXECUTED_CMD]='Noforce_Alert "(${_item} installed)"; Add_To AUR_INST_SYST "${_item}"; Remove_From AUR_MISS_SYST "${_item}"; CHANGE_MADE=true;'
-    [SKIPPED_CMD]='Noforce_Alert "(${_item} skipped)"'
-    [FAILED_CMD]='Noforce_Alert "(${_item} installed failed!)"'
-    [FORCE_VALUE]='${FORCE}'
-    ); Ask_Auto_Action ASK_AUTO_SOURCE_;
-    fi
+# PACKAGES MISSING FROM SYSTEM
+# -----------------------------------------------------------------------------
+if [[ -n ${PACKAGES_MISS_SYST[*]:-} ]]; then
+UI_Backup_Alert "\nINSTALL MISSING PACKAGES LISTED IN 
+$(Upper_Case ${SCRIPTNAME})?\n${HR} \nThe following packages are not 
+installed on your system but *are* listed in your ${SCRIPTNAME} package 
+list. Please choose whether to install each item to your system"
+Unset_Array ASK_AUTO_SOURCE_; ASK_AUTO_SOURCE_=(
+[LIST_VAR_NAME]='PACKAGES_MISS_SYST'
+[QUERY_STRING]='\n${_item}\nInstall package?'
+[ACTION_CMD]='Install_Package "${_item}"'
+[DEFAULT_CHOICE]='true'
+[EXECUTED_CMD]='
+Noforce_Alert "(${_item} installed)"; 
+Add_To PACKAGES_INST_SYST "${_item}"; 
+Remove_From PACKAGES_MISS_SYST "${_item}"; 
+CHANGE_MADE=true;'
+[SKIPPED_CMD]='Noforce_Alert "(${_item} skipped)"'
+[FAILED_CMD]='Noforce_Alert "(${_item} installed failed!)"'
+[FORCE_VALUE]='${FORCE}'
+); Ask_Auto_Action ASK_AUTO_SOURCE_;
+fi
+
+# AUR MISSING FROM SYSTEM
+# -----------------------------------------------------------------------------
+if [[ -n ${AUR_MISS_SYST[*]:-} ]]; then
+UI_Backup_Alert "\nINSTALL MISSING AUR PACKAGES LISTED IN $(Upper_Case 
+${SCRIPTNAME})?\n${HR} \nThe following aur packages are not installed on 
+your system but *are* listed in your ${SCRIPTNAME} aur package list.  
+Please choose whether to install each item to your system"
+Unset_Array ASK_AUTO_SOURCE_; ASK_AUTO_SOURCE_=(
+[LIST_VAR_NAME]='AUR_MISS_SYST'
+[QUERY_STRING]='\n${_item}\nInstall package?'
+[ACTION_CMD]='Install_Package_From_AUR_Helper "${_item}"'
+[DEFAULT_CHOICE]='true'
+[EXECUTED_CMD]='
+Noforce_Alert "(${_item} installed)"; 
+Add_To AUR_INST_SYST "${_item}"; 
+Remove_From AUR_MISS_SYST "${_item}"; 
+CHANGE_MADE=true;'
+[SKIPPED_CMD]='Noforce_Alert "(${_item} skipped)"'
+[FAILED_CMD]='Noforce_Alert "(${_item} installed failed!)"'
+[FORCE_VALUE]='${FORCE}'
+); Ask_Auto_Action ASK_AUTO_SOURCE_;
+fi
 
 ;;
 esac
 
-Progress_Report PACKAGES_GOOD "PACKAGES UP TO DATE: packages listed in ${SCRIPTNAME} also installed on system"
+Progress_Report PACKAGES_GOOD \
+"PACKAGES UP TO DATE: ${SCRIPTNAME} packages match system"
+
 Progress_Report AUR_GOOD "AUR UP TO DATE: aur packages listed in ${SCRIPTNAME} also installed on system"
 
 Progress_Report PACKAGES_MISS_CONF "PACKAGES NOT IN ${SCRIPTNAME}: installed packages not listed in ${SCRIPTNAME} config"
@@ -883,9 +907,9 @@ Progress_Report AUR_REMO_CONF "AUR REMOVED FROM ${SCRIPTNAME}: matches aur packa
 
 }
 
-# ==============================================================================
+# =============================================================================
 # FILES
-# ==============================================================================
+# =============================================================================
 
 UNIT_Files ()
 {
@@ -895,7 +919,7 @@ Is_True ${SKIP_FILES} && return || true
 # TODO: add garbage collection. when files present in files directory but not in 
 # files list, there should be a prompt to remove
 # FILES CHECK
-# ----------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 
 Read_File_Lines_To_Array "${FILES_FILEPATH}" FILES_ARRAY || true
 
@@ -1129,8 +1153,12 @@ SYSTEM)
         Noforce_Alert "(${_item} copied)";
         Remove_From FILES_MISS_SYST "${_item}";
         CHANGE_MADE=true;'
-        [SKIPPED_CMD]='Noforce_Alert "(${_item} skipped)"; Swap_In FILES_MISS_SYST "${_item}" "${_item} (INSTALL SYSTEM FILE SKIPPED)"'
-        [FAILED_CMD]='Noforce_Alert "(${_item} copy failed!)"; Swap_In FILES_MISS_SYST "${_item}" "${_item} (INSTALL SYSTEM FILE FAILED)"'
+        [SKIPPED_CMD]='
+        Noforce_Alert "(${_item} skipped)"; Swap_In FILES_MISS_SYST "${_item}" 
+        "${_item} (INSTALL SYSTEM FILE SKIPPED)"'
+        [FAILED_CMD]='
+        Noforce_Alert "(${_item} copy failed!)"; Swap_In FILES_MISS_SYST 
+        "${_item}" "${_item} (INSTALL SYSTEM FILE FAILED)"'
 
         [FORCE_VALUE]='${FORCE}'
 
@@ -1153,13 +1181,16 @@ SYSTEM)
         [DEFAULT_CHOICE]='true'
 
         [EXECUTED_CMD]='Noforce_Alert "(${_item} updated attributes)";
-        Add_To FILES_GOOD "${_item} (${FILE_[${_hash},NEWCOPY_REPORT]:-}UPDATED SYSTEM FILE ATTRIBUTES)";
+        Add_To FILES_GOOD "${_item} 
+        (${FILE_[${_hash},NEWCOPY_REPORT]:-}UPDATED SYSTEM FILE ATTRIBUTES)";
         Remove_From FILES_DIFF_ATTR "${_item}";
         CHANGE_MADE=true;'
         [SKIPPED_CMD]=' Noforce_Alert "(${_item} skipped)";
-        Swap_In FILES_DIFF_ATTR "${_item}" "${_item} (UPDATE SYSTEM FILE ATTRIBUTES SKIPPED)"'
+        Swap_In FILES_DIFF_ATTR "${_item}" "${_item} (UPDATE SYSTEM FILE 
+        ATTRIBUTES SKIPPED)"'
         [FAILED_CMD]='  Noforce_Alert "(${_item} update attributes failed!)";
-        Swap_In FILES_DIFF_ATTR "${_item}" "${_item} (UPDATE SYSTEM FILE ATTRIBUTES FAILED!)"'
+        Swap_In FILES_DIFF_ATTR "${_item}" "${_item} (UPDATE SYSTEM FILE 
+        ATTRIBUTES FAILED!)"'
 
         [FORCE_VALUE]='${FORCE}'
 
@@ -1187,9 +1218,11 @@ SYSTEM)
         Remove_From FILES_DIFF_CONT "${_item}";
         CHANGE_MADE=true;'
         [SKIPPED_CMD]=' Noforce_Alert "(${_item} skipped)";
-        Swap_In FILES_DIFF_CONT "${_item}" "${_item} (UPDATE SYSTEM FILE CONTENT SKIPPED)"'
+        Swap_In FILES_DIFF_CONT "${_item}" "${_item} (UPDATE SYSTEM FILE 
+        CONTENT SKIPPED)"'
         [FAILED_CMD]='  Noforce_Alert "(${_item} update failed!)";
-        Swap_In FILES_DIFF_CONT "${_item}" "${_item} (UPDATE SYSTEM FILE CONTENT FAILED!)"'
+        Swap_In FILES_DIFF_CONT "${_item}" "${_item} (UPDATE SYSTEM FILE 
+        CONTENT FAILED!)"'
 
         [FORCE_VALUE]='${FORCE}'
 
@@ -1240,9 +1273,9 @@ Progress_Report FILES_GARBAGE "GARBAGE COLLECTION (ITEMS IN ${SCRIPTNAME} FILES 
 [[ -z ${MODE_FINAL:-} ]] || Unit_Report "\n${MODE_FINAL}"
 }
 
-# ==============================================================================
+# =============================================================================
 # REPORT
-# ==============================================================================
+# =============================================================================
 
 UNIT_Report ()
 {
@@ -1269,9 +1302,9 @@ fi
 #and adding to a global report sequence variable
 }
 
-# ==============================================================================
+# =============================================================================
 # CLEANUP / TRAP
-# ==============================================================================
+# =============================================================================
 
 UNIT_Clean_Up ()
 {
@@ -1282,8 +1315,8 @@ for cleanup_item in "${CLEANUP[@]}"; do eval "$cleanup_item"; done
 
 TRAP_Alert () { echo -e "\nEARLY TERMINATION: Running Cleanup...\n"; }
 
-# ==============================================================================
+# =============================================================================
 # MAIN EXECUTION OF UNIT_SEQUENCE
-# ==============================================================================
+# =============================================================================
 
 for unit in $UNIT_SEQUENCE; do eval UNIT_$unit; done; unset unit

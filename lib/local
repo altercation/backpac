@@ -88,3 +88,111 @@ File_Install_To_System () {
         sudo install -CD --backup=${BACKUP_MODE} -S${BACKUP_SUFFIX} ${_mode} ${_owner} ${_group} "${_source_path}" "${_target_path}"
     fi
 }
+
+Update_Groups_List_If_Changed ()
+{
+if [[ -n ${GROUPS_INST_CONF:-}${GROUPS_REMO_CONF:-} ]]
+then
+
+    # copy current config packages file if present
+    [[ -e "${GROUPS_FILEPATH}" ]] \
+        && cp "${GROUPS_FILEPATH}" "${TMPDIR}/${GROUPS_FILENAME}" &>/dev/null
+
+    local _tg="${TMPDIR}/${GROUPS_FILENAME}"
+    local _dt="$(date +%F)"
+
+    # add newly added packages to list
+    if [[ -n ${GROUPS_INST_CONF:-} ]]
+    then
+        echo -e "\n# GROUPS added by ${SCRIPTNAME} on ${_dt}" >> "${_tg}"
+        echo "# ${HR%--}" >>"$_tg"
+        echo ${GROUPS_INST_CONF} | fmt -w 80 >>"$_tg"
+    fi
+
+    # include a summary of removed packages
+    if [[ -n ${GROUPS_REMO_CONF:-} ]]
+    then
+        local _group_name
+        for _group_name in ${GROUPS_REMO_CONF}
+        do
+            Remove_Item_From_File "${_group_name}" "${_tg}"
+        done
+        echo -e "\n# GROUPS REMOVED by ${SCRIPTNAME} on ${_dt}" >> "${_tg}"
+        echo "# ${HR%--}" >> "${_tg}"
+        echo "# $(echo ${GROUPS_REMO_CONF})" >> "${_tg}"
+    fi
+
+    # atomic write
+    install -CD \
+        --backup=${BACKUP_MODE} \
+        -S${BACKUP_SUFFIX} \
+        "${_tg}" "${GROUPS_FILEPATH}" &>/dev/null \
+        && echo "SUCCESSFULLY UPDATED GROUPS LIST" \
+        || echo "FAILED TO UPDATE GROUPS LIST!"
+#       && MODE_FINAL="SUCCESSFULLY UPDATED GROUPS LIST" \
+#       || MODE_FINAL="FAILED TO UPDATE GROUPS LIST!"
+#
+else
+    #MODE_FINAL= #"NO CHANGES MADE; GROUPS LIST NOT UPDATED"
+    :
+fi
+}
+
+Update_Packages_List_If_Changed ()
+{
+if [[ -n ${PACKAGES_INST_CONF:-}${PACKAGES_REMO_CONF:-}${AUR_INST_CONF:-}${AUR_REMO_CONF:-} ]]
+then
+
+    # copy current config packages file if present
+    [[ -e "${PACKAGES_FILEPATH}" ]] && cp "${PACKAGES_FILEPATH}" "${TMPDIR}/${PACKAGES_FILENAME}"
+
+    # add newly added packages to list
+    if [[ -n ${PACKAGES_INST_CONF:-} ]]
+    then
+        echo -e "\n# PACKAGES added by ${SCRIPTNAME} on $(date +%F)" >> "${TMPDIR}/${PACKAGES_FILENAME}"
+        echo "# ${HR%--}" >> "${TMPDIR}/${PACKAGES_FILENAME}"
+        echo ${PACKAGES_INST_CONF} | fmt -w 80 >> "${TMPDIR}/${PACKAGES_FILENAME}"
+    fi
+    if [[ -n ${AUR_INST_CONF:-} ]]
+    then
+        echo -e "\n# AUR PACKAGES added by ${SCRIPTNAME} on $(date +%F)" >> "${TMPDIR}/${PACKAGES_FILENAME}"
+        echo "# ${HR%--}" >> "${TMPDIR}/${PACKAGES_FILENAME}"
+        echo ${AUR_INST_CONF} | fmt -w 80 >> "${TMPDIR}/${PACKAGES_FILENAME}"
+    fi
+
+    # include a summary of removed packages
+    if [[ -n ${PACKAGES_REMO_CONF:-} ]]
+    then
+        local _package_name
+        for _package_name in ${PACKAGES_REMO_CONF}
+        do
+            Remove_Item_From_File "${_package_name}" "${TMPDIR}/${PACKAGES_FILENAME}"
+        done
+        echo -e "\n# PACKAGES REMOVED by ${SCRIPTNAME} on $(date +%F)" >> "${TMPDIR}/${PACKAGES_FILENAME}"
+        echo "# ${HR%--}" >> "${TMPDIR}/${PACKAGES_FILENAME}"
+        echo "# $(echo ${PACKAGES_REMO_CONF})" >> "${TMPDIR}/${PACKAGES_FILENAME}"
+    fi
+    if [[ -n ${AUR_REMO_CONF:-} ]]
+    then
+        local _package_name
+        for _package_name in ${AUR_REMO_CONF}
+        do
+            Remove_Item_From_File "${_package_name}" "${TMPDIR}/${PACKAGES_FILENAME}"
+        done
+        echo -e "\n# AUR PACKAGES REMOVED by ${SCRIPTNAME} on $(date +%F)" >> "${TMPDIR}/${PACKAGES_FILENAME}"
+        echo "# ${HR%--}" >> "${TMPDIR}/${PACKAGES_FILENAME}"
+        echo "# $(echo ${AUR_REMO_CONF})" >> "${TMPDIR}/${PACKAGES_FILENAME}"
+    fi
+
+    # atomic write
+    install -CD --backup=${BACKUP_MODE} -S${BACKUP_SUFFIX} "${TMPDIR}/${PACKAGES_FILENAME}" "${PACKAGES_FILEPATH}" \
+    && echo "SUCCESSFULLY UPDATED PACKAGES LIST" \
+    || echo "FAILED TO UPDATE PACKAGES LIST!"
+#   && MODE_FINAL="SUCCESSFULLY UPDATED PACKAGES LIST" \
+#   || MODE_FINAL="FAILED TO UPDATE PACKAGES LIST!"
+
+else
+    #MODE_FINAL= #"NO CHANGES MADE; PACKAGES LIST NOT UPDATED"
+    :
+fi
+}
