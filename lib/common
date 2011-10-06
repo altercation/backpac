@@ -330,7 +330,7 @@ local _option_flag
 while getopts "${_option_flags}" _option_flag
 do case ${_option_flag} in
     \?) exit 1 ;; # getopts has detected an incorrectly formatted option
-    h)  Usage; exit 0 ;;
+    h)  Usage; UNIT_Clean_Up; exit 0 ;;
     *)  local _option=${FLAG_[${_option_flag}]}
         local _item;
         eval ${_option}[ALERT]=\"\${${_option}[ALERT_SET]}\"
