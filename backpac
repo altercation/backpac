@@ -39,7 +39,9 @@ done
 # SCRIPT DEFAULTS
 # ==============================================================================
 
-CMDLINE_OPTIONS="${@}" # global so we can use in functions easily
+#CMDLINE_OPTIONS="${@}" # global so we can use in functions easily
+CMDLINE_OPTIONS="$(echo "${@}" | sed 's/ --\([[:alpha:]]\)\w*/ -\1/g')"
+# global so we can use in functions easily
 BACKUP_SUFFIX=".${SCRIPTNAME}-old" # cf man install
 DEFAULT_BACKUP_MODE=simple # cf man install
 GROUPS_FILENAME="groups"
