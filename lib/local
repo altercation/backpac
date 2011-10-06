@@ -36,3 +36,20 @@ Files_Differ ()
     local _filepath_2="${2}"
     $(diff -q "${_filepath_1}" "${_filepath_2}" &>/dev/null) && return 1 || return 0
 }
+
+# sanitized version
+Files_Differ_Sanitized ()
+{
+    local _filepath_1="${1}" # source, non sanitized
+    local _filepath_2="${2}" # assumed possibly sanitized
+    local _filepath_1_sanitized="${TMPDIR}/${1#/}" # sanitize 1
+    install -D "${_filepath_1}" "${_filepath_1_sanitized}"
+    Sanitize "${_filepath_1_sanitized}"
+    $(diff -q "${_filepath_1_sanitized}" "${_filepath_2}" &>/dev/null) && return 1 || return 0
+    rm "${_filepath_1_sanitized}"
+}
+
+Sanitize ()
+{
+    sed -i 's/\(^.*psk="\|^.*wep_key.="\).*\("\)/\1password-here\2/'")' "${1}"
+}
