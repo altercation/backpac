@@ -184,11 +184,13 @@ information.
 
 ### BACKPAC OPTIONS SUMMARY:
 
+    -a     Skip pAckages; Groups and packages will not be processed.
     -b     Turn off backups when copying new files to an existing path.
     -F     DANGER: Force mode with automatic execution, NO-INITIAL PROMPT.
     -f     Force all write operations; no prompts will be given.
     -g     Suppress group currency check; Skip checking current group packages.
     -h     Display option and usage summary.
+    -i     Skip fIles; Files will not be processed.
     -p     Specify full path to a custom backpac config directory.
     -Q     SAFELY queries & reports system/backpac config state; no changes.
     -R     DANGER: Auto-Remove; Remove/Uninstall actions default to YES.
