@@ -1,10 +1,6 @@
 #!/bin/bash
 
-TestFunc () {
-    Files_Differ ~/tmp/a ~/tmp/b && echo "diff" || echo "same"
-    exit
-    :;
-}
+TestFunc () { :; }
 
 # ==============================================================================
 # SCRIPT EXECUTION SETTINGS
