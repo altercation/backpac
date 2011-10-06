@@ -29,3 +29,10 @@ Remove_Item_From_File ()
     sed -i "/^[[:space:]]*#/!s/\<${_item_name}\>[^[:punct:]]//" "${_filepath}"
     sed -i "/^[[:space:]]*#/!s/\<${_item_name}\>$//" "${_filepath}"
 }
+
+Files_Differ ()
+{
+    local _filepath_1="${1}"
+    local _filepath_2="${2}"
+    $(diff -q "${_filepath_1}" "${_filepath_2}" &>/dev/null) && return 1 || return 0
+}
