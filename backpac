@@ -365,14 +365,7 @@ then
 else
     mkdir -p ${CONFIG_DIRPATH}
 fi
-
-local _message="\nSourcing from ${SCRIPTNAME} config directory: ${CONFIG_DIRPATH}"
-UI_Passive_Alert "$_message"
-# if [[ "${MODE}" != "QUERY" ]] && ! Is_True ${FORCE}
-# then
-#     UI_Passive_Alert "$_message"
-# fi
-# Unit_Report "$_message"
+UI_Passive_Alert "\nConfig directory: ${CONFIG_DIRPATH}"
 }
 
 # ==============================================================================
