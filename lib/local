@@ -48,8 +48,3 @@ Files_Differ_Sanitized ()
     $(diff -q "${_filepath_1_sanitized}" "${_filepath_2}" &>/dev/null) && return 1 || return 0
     rm "${_filepath_1_sanitized}"
 }
-
-Sanitize ()
-{
-    sed -i 's/\(^.*psk="\|^.*wep_key.="\).*\("\)/\1password-here\2/'")' "${1}"
-}
