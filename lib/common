@@ -415,24 +415,35 @@ Options_Prerun ()
 local _option_array
 for _option_array in ${!OPT_*}
 do
+    local _prerun_displayed=
+    local _prerun_statement=
+    local _conditional=
+    local _prerun_conditional_statement=
     if Option_Is_Set $_option_array
     then
         eval local _prerun=\"\${$_option_array[PRERUN]:-}\"
         eval local _prerun_conditionals=\"\${$_option_array[PRERUN_CONDITIONALS]:-}\"
-        local _prerun_displayed=false
+        _prerun_displayed=false
         if [[ -n ${_prerun_conditionals:-} ]]
         then
-            local _conditional=
             for _conditional in ${_prerun_conditionals:-}
             do
                 if Option_Is_Set "$(Unframe_Reframe "OPT_" "${_conditional}" "_")"
                 then
-                    eval "[[ -n \${$_option_array[PRERUN_${_conditional}]:-} ]] && echo \"\\\n\${$_option_array[PRERUN_${_conditional}]:-}\""
+                    eval local _prerun_conditional_statement=\"\${$_option_array[PRERUN_${_conditional}]:-}\"
                     _prerun_displayed=true
+                    [[ -n "${_prerun_conditional_statement}" ]] && echo -e ${_prerun_conditional_statement}
+                    # eval "[[ -n \${$_option_array[PRERUN_${_conditional}]:-} ]] && echo -e \"\\\n\${$_option_array[PRERUN_${_conditional}]:-}\""
+                    #_prerun_displayed=true
                 fi
             done
         fi
-        Is_True $_prerun_displayed || eval "[[ -n \${$_option_array[PRERUN]:-} ]] && echo \"\\\n\${$_option_array[PRERUN]:-}\""
+        if ! Is_True $_prerun_displayed
+        then
+            eval local _prerun_statement=\"\${$_option_array[PRERUN]:-}\"
+            [[ -n "${_prerun_statement}" ]] && echo -e ${_prerun_statement}
+            #eval "[[ -n \${$_option_array[PRERUN]:-} ]] && echo -e \"\\\n\${$_option_array[PRERUN]:-}\""
+        fi
     fi
 done
 }
@@ -483,10 +494,14 @@ do
     _p="  "
     eval _string+=\"${_p:0:1}-\${$_option_array[FLAG]%:}${_p:1:1}\\t\${$_option_array[USAGE]:-}\\\n\"
 done
+#local _option_summary="$(echo -en "${_string}" | sort)"
 local _option_summary="$(echo -en "${_string}" | sort)"
-    [[ -z ${_option_summary:-} ]] || UI_Passive_Alert "${_option_summary}"
-    [[ -n ${USAGE_SYSTEM_CONFIG:-} ]] && UI_Passive_Alert "${USAGE_CONFIG_STATE:-}"
-    [[ -n ${USAGE_SUMMARY:-} ]] && UI_Passive_Alert "${USAGE_SUMMARY}"
+#    [[ -z ${_option_summary:-} ]] || UI_Passive_Alert "${_option_summary}"
+#    [[ -n ${USAGE_SYSTEM_CONFIG:-} ]] && UI_Passive_Alert "${USAGE_CONFIG_STATE:-}"
+#    [[ -n ${USAGE_SUMMARY:-} ]] && UI_Passive_Alert "${USAGE_SUMMARY}"
+    [[ -z ${_option_summary:-} ]] || echo -e "${_option_summary}"
+    [[ -n ${USAGE_SYSTEM_CONFIG:-} ]] && echo -e ${USAGE_CONFIG_STATE:-}
+    [[ -n ${USAGE_SUMMARY:-} ]] && echo -e ${USAGE_SUMMARY}
 }
 
 _Set_Op_Precheck ()
